@@ -1,0 +1,943 @@
+---
+title: "ARCH-GARCH dengan Penerapan Filter Kalman"
+author: "Sausan"
+date: "2025-04-29"
+output: html_document
+---
+
+# Import Library Yang Dibutuhkan
+```{r}
+library(visdat)
+library(ggplot2)
+library(astsa)
+library(tseries)
+library(forecast)
+library(TSA)
+library(TSA)
+library(quantmod)
+library(rugarch)
+library(MLmetrics)
+library(FinTS)
+library(moments)
+library(KFAS)
+library(dlm)
+library(timeDate)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+```
+
+# Import Dataset
+```{r}
+UNVRJK <- read.csv("C:/Users/LENOVO/Documents/SMT 7/PENULISAN PROPOSAL/UNVR.JK 2014-2025.csv")
+head(UNVRJK)
+```
+
+```{r}
+tail(UNVRJK)
+```
+
+# EDA
+```{r}
+#Melihat dimensi data
+dim(UNVRJK)
+
+#Melihat struktur dataset
+str(UNVRJK)
+
+#Mengecek missing value data
+sapply(UNVRJK, function (x) sum(is.na(x)))
+
+#visualisasi missing value
+vis_miss(UNVRJK)
+```
+
+# EDA
+```{r}
+#Analisis Deskriptif
+summary(UNVRJK)
+```
+
+# Plot Agregasi
+# Boxplot untuk melihat outlier
+```{r}
+boxplot(UNVRJK$Close, 
+        main = "Boxplot Variabel Close dalam Dataset UNVRJK",
+        xlab = "Close", ylab = "Nilai Close")
+```
+
+Berdasarkan output boxplot di atas terlihat bahwa tidak terdapat outlier
+
+# Feature Selection
+```{r}
+#Ambil Data
+# Ambil Data Close dan Date
+Close <- ts(UNVRJK[, "Close"])  # Mengambil kolom "Close" dalam bentuk time series
+Date <- UNVRJK[, "Date"]        # Mengambil kolom "Date" sebagai vektor biasa
+
+# Cek hasilnya
+head(data.frame(Date, Close))
+```
+
+# Plot Time Series
+```{r}
+UNVRJK$Date <- as.Date(UNVRJK$Date) 
+ggplot(UNVRJK, aes(x = Date, y = Close)) +
+  geom_line() +
+  labs(title = "Plot Time Series UNVRJK", x = "Tahun", y = "Close Price") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))  # Menengahkan judul
+```
+
+# Kesimpulan Plot Time Series
+Dari gambar di atas dapat diketahui bahwa perkembangan harga saham dalam 10 tahun terakhir cukup fluktuatif. Maksud fluktuatif mengindikasikan adanya variasi/perubahan yang signifikan dalam harga saham dari waktu ke waktu. Sehingga dapat disimpulkan bahwa harga saham telah mengalami perubahan yang signifikan selama periode 10 tahun terakhir tanpa memberikan detail spesifik tentang arah/pola fluktuasi tersebut.
+
+# Uji Stationeritas
+## Cek Stationeritas Terhadap Ragam
+```{r}
+bc = BoxCox.lambda(Close)
+bc
+```
+
+Pada output diatas terlihat hasil nilai λ menunjukkan angka 0.595005 (Jauh dari 1). Jadi dapat disimpulkan bahwa data tersebut tidak stasioner secara ragam.
+
+## Cek Stasioneritas Terhadap Rata-Rata/Rataan
+```{r}
+adf.test(Close)
+```
+
+Pada output diatas terlihat pada uji ADF diperoleh p-values lebih besar dari nilai α (0.6225>0,05) sehingga H0 diterima yang berarti data tidak stationer secara rataan
+
+## Plot ACF dan PACF
+```{r}
+acf2(Close)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data Close. Pada plot di atas terlihat bahwa data belum stasioner karena setiap lagnya keluar dari selang interval.
+
+## Melakukan differencing 1 terhadap data
+```{r}
+diff1.Close = diff(Close)
+plot.ts(diff1.Close)
+```
+
+Pada output diatas terlihat plot pada differencing 1 berdasarkan data Close. Pada plot di atas terlihat bahwa data masih belum stasioner karena masih terlihat fluktuatif. Data mengalami lonjakan naik turun yang cukup besar.
+
+## Plot ACF dan PACF differencing 1 kali
+```{r}
+acf2(diff1.Close)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data differencing 1 kali.
+
+## Melakukan differencing 2 terhadap data
+```{r}
+diff2.Close = diff(diff1.Close)
+plot(diff2.Close)
+```
+
+Pada output diatas terlihat plot pada differencing 2 berdasarkan data differencing 1. Pada plot di atas terlihat bahwa data belum stasioner karena masih terlihat fluktuatif. Data mengalami lonjakan naik turun yang cukup besar.
+
+## Plot ACF dan PACF differencing 2
+```{r}
+acf2(diff2.Close)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data differencing 2 kali.
+
+## Melihat plot dalam bentuk matriks
+```{r}
+par(mfrow=c(3,1))
+plot.ts(Close)
+plot.ts(diff1.Close, col = "blue")
+plot.ts(diff2.Close, col = "red")
+```
+
+Pada output diatas terlihat plot close pada data awal, differencing 1 kali, dan differencing 2 kali. Pada plot differencing 1 itu sudah lurus pada sumbu X namun ada beberapa lonjakan. Pada differencing 2 juga terdapat lonjakan, namun dapat terlihat bahwa differencing 2 lebih stabil karena lonjakannya tidak terlalu besar.
+
+## Transformasi
+```{r}
+AP=Close
+log.AP = log(AP)
+par(mfrow = c(2,1))
+plot.ts(AP)
+plot.ts(log.AP, col = 'blue')
+```
+
+Pada output diatas terlihat plot yang sudah di transformasi. Pada plot data tersebut menunjukkan tren naik dan tren turun.
+
+## Melakukan differencing pada log AP
+```{r}
+par(mfrow = c(3,1))
+plot(log.AP)
+diff1.log.AP = diff(log.AP)
+plot.ts(diff1.log.AP)
+diff2.log.AP = diff(diff1.log.AP)
+plot.ts(diff2.log.AP)
+```
+
+Pada output diatas terlihat plot close pada data awal, transformasi logaritma differencing 1 kali, transformasi logartima differencing 2 kali. Pada plot differencing 1 itu lonjakannya kecil berarti data sudah stasioner secara rata2, namun di akhir ada lonjakan besar berarti data tidak stasioner secara ragam. Pada differencing 2 lonjakannya kecil.
+
+## Plot ACF dan PACF dengan transformasi logaritma
+```{r}
+acf2(log.AP)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data dengan transformasi logaritma. Pada plot di atas terlihat bahwa data belum stasioner karena setiap lagnya keluar dari selang interval.
+
+## Plot ACF dan PACF kombinasi transformasi logartima dengan differencing 1
+```{r}
+acf2(diff1.log.AP)
+```
+
+## Plot ACF dan PACF kombinasi transformasi logartima dengan differencing 2
+```{r}
+acf2(diff2.log.AP)
+```
+
+# Kesimpulan
+Jadi, dapat disimpulkan data kombinasi transformasi logartima dengan differencing 1 sudah stabil. Jadi data yang akan digunakan adalah data kombinasi transformasi logartima dengan differencing 1.
+
+## Cek Stationeritas Terhadap Ragam
+```{r}
+bc1 = BoxCox.lambda(diff1.log.AP)
+bc1
+```
+
+Pada output diatas terlihat hasil nilai λ menunjukkan angka 1. Jadi dapat disimpulkan bahwa data tersebut sudah stasioner secara ragam.
+
+## Cek Stasioneritas Terhadap Rata-Rata/Rataan
+```{r}
+adf.test(diff1.log.AP)
+```
+
+Pada output diatas terlihat pada uji ADF diperoleh p-values lebih besar dari nilai α (0,01<0,05) sehingga H0 ditolak yang berarti data stationer secara varians. 
+
+# Kandidat Model ARIMA (2,1,3)
+```{r}
+Close.ARIMA.2.1.3 = arima(diff1.log.AP, order = c(2,1,3))
+Close.ARIMA.2.1.3
+```
+
+# Uji Diagnostik Model ARIMA (2,1,3) Yang Sudah Didapatkan
+## Plot Residual
+```{r}
+Close.UNVRJK213 = arima(diff1.log.AP, order = c(2,1,3))
+Res.Close213 = residuals(Close.UNVRJK213)
+plot(Res.Close213, ylab = "Residual", type = "o")
+abline(h=0, col = "red")
+```
+
+Pada output di atas terlihat plot residual yang mempermudah kita untuk melihat residual yang tidak wajar. Berdasarkan plot di atas terlihat bahwa tidak terdapat tren pada residual.
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(Res.Close213)
+qqline(Res.Close213)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(Res.Close213, "pnorm", mean=mean(Res.Close213), sd=sd(Res.Close213))
+```
+
+Karena nilai p-value (9.104e-15) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. 
+
+```{r}
+kurtosis(Res.Close213)
+```
+
+Nilai kurtosis residual (Res.Close) yang kamu dapatkan adalah 10.35838, yang jauh lebih besar dari 3. Ini berarti distribusi residualnya leptokurtic (lebih runcing dari distribusi normal), yang menunjukkan bahwa data memiliki lebih banyak outlier dibanding distribusi normal.
+
+```{r}
+skewness(Res.Close213)  # Jika jauh dari 0, kemungkinan butuh sstd
+```
+
+## ACF Residual
+Untuk memerika asumsi kebebasan derau (noise), kita bisa memeriksa fungsi autokorelasi sampel residual.
+```{r}
+acf(Res.Close213)
+```
+
+Berdasarkan plot fungsi autokorelasi sampel terlihat bahwa ada yang melewati batas garis putus-putus. Dengan demikian, dapat dikatakan bahwa terdapat autokorelasi pada residual. 
+
+```{r}
+acf(Res.Close213^2, main = "ACF of Squared Residuals")
+```
+
+## Menghitung nilai Ljung-Box
+```{r}
+ljung_box213 <- Box.test(Res.Close213, lag = 25, type = "Ljung-Box")
+ljung_box213
+```
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.4173) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+## LJung-Box Statistik
+```{r}
+tsdiag(Close.UNVRJK213, gof.lag =25)
+```
+
+Berdasarkan plot Ljung-Box terlihat bahwa ada p-value yang berada di bawah garis putus-putus (nilai 0.05). 
+
+Jadi, residual yang diestimasi dari persamaan model **ARIMA(2,1,3)** merupakan residual yang sudah bersifat white noise. Artinya residual tidak berdistribusi normal dan terdapat kondisi heterokedastisitas. Ketidaknormalan residual ini dapat mengindikasikan adanya proses ARCH – GARCH, akan tetapi syarat ini tidak cukup untuk memastikan adanya unsur ARCH – GARCH. Sehingga diperlukan adanya uji lain yakni uji Lagrange Multiplier yang akan dilakukan pada tahap berikutnya.
+
+## Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(Res.Close213, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 2.2e-16 yang berarti < alpha (0,05). Hal tersebut berarti menolak Ho (tidak ada efek arch) yang menandakan terdapat ada efek arch pada ARIMA (2,1,3)
+
+# Model ARCH GARCH
+```{r}
+# Hitung log return dari data Close
+log_returns <- diff(log(Close))  # Menghitung log return
+log_returns <- na.omit(log_returns)  # Menghapus NA yang dihasilkan oleh diff()
+```
+
+# Split Data
+```{R}
+# Bagi data menjadi training dan testing (80:20)
+train_size <- round(0.8 * length(log_returns))
+train_data <- log_returns[1:train_size]
+test_data <- log_returns[(train_size + 1):length(log_returns)]
+```
+
+# Modelling ARCH-GARCH
+```{r}
+spec7 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(1, 2)), 
+                     distribution.model = "sstd")
+
+garch_fit7 <- ugarchfit(spec = spec7, data = train_data)
+garch_fit7
+```
+
+## Analisis Model Terbaik
+GARCH(1,2)-sstd dengan AIC: -5.4770
+
+# GARCH(1,2)-sstd 
+## Periksa Residual Standardized
+```{r}
+# Ambil residual yang distandarisasi
+std_resid7<- residuals(garch_fit7, standardize = TRUE)
+
+# Plot residual standardize
+plot(std_resid7, type = "l", main = "Standardized Residuals", col = "blue")
+
+# Plot ACF dan PACF dari residual kuadrat
+acf(std_resid7^2, main = "ACF of Squared Standardized Residuals")
+pacf(std_resid7^2, main = "PACF of Squared Standardized Residuals")
+```
+
+## Menghitung nilai Ljung-Box
+Box-Ljung test digunakan untuk menguji apakah residual dari model masih memiliki autokorelasi.
+```{r}
+ljung_box7 <- Box.test(std_resid7, lag = 25, type = "Ljung-Box")
+ljung_box7
+```
+
+Hipotesis Nol (H₀): Tidak ada autokorelasi dalam residual (residual bersifat acak).
+Hipotesis Alternatif (H₁): Ada autokorelasi dalam residual (residual masih memiliki pola).
+
+p-value = 0.4109 > 0.05
+
+Tidak cukup bukti untuk menolak H₀ (menerima H0), sehingga residual dianggap tidak memiliki autokorelasi secara signifikan.
+Ini berarti model sudah menangkap pola volatilitas dengan cukup baik, dan tidak ada pola tersisa dalam residual.
+X-squared = 25.939 lebih besar dari df (25)
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.4109) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+Ini menunjukkan bahwa nilai statistik uji tidak terlalu besar, yang mendukung kesimpulan bahwa residual sudah cukup acak.
+
+# Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(std_resid7, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 0.8682 yang berarti > alpha (0,05). Hal tersebut berarti menerima Ho (tidak ada efek arch) yang menandakan terdapat tidak ada efek arch pada model GARCH(1,2)-sstd.
+
+# Kesimpulan
+Model yang digunakan sudah cukup baik karena residualnya tidak menunjukkan pola autokorelasi yang signifikan. Model GARCH yang digunakan bisa dianggap valid, karena volatilitasnya sudah cukup terprediksi dengan baik.
+
+# Peramalan
+```{r}
+# Prediksi dengan model
+forecast7 <- ugarchforecast(garch_fit7, n.ahead = length(test_data))
+
+# Ambil nilai prediksi log return
+predicted_values7 <- as.numeric(fitted(forecast7))
+```
+
+```{r}
+# Perbaikan transformasi kembali ke harga asli
+P0_test <- Close[train_size + 1]  # Ambil harga awal dari test set
+
+# Transformasi kembali log return ke harga asli
+harga_aktual <- P0_test * exp(cumsum(test_data))  # Harga aktual dari test set
+harga_prediksi<- P0_test * exp(cumsum(predicted_values7))  # Harga prediksi dari model
+
+if (length(harga_prediksi) == length(harga_aktual)) {
+  comparison_harga7 <- data.frame("Aktual" = harga_aktual, "Prediksi" = harga_prediksi)
+  print(comparison_harga7)
+  
+  # Hitung MAPE
+  mape_harga7 <- mean(abs((harga_prediksi- harga_aktual) / harga_aktual))
+  mape_harga_percent7 <- mape_harga7 * 100
+  print(paste("MAPE (Harga Asli): ", mape_harga_percent7, "%"))
+} else {
+  print("Error: Panjang harga_prediksi dan harga_aktual tidak sama!")
+}
+```
+
+```{r}
+dates_test <- UNVRJK$Date[(nrow(UNVRJK) - length(harga_aktual) + 1):nrow(UNVRJK)]
+dates_test <- as.Date(dates_test)
+
+# Buat data frame 
+comparison_harga <- data.frame(
+  Date = dates_test,  
+  Aktual = harga_aktual,
+  Prediksi = harga_prediksi
+)
+
+# Membuat plot 
+ggplot(comparison_harga, aes(x = Date)) +
+  geom_line(aes(y = Aktual, color = "Aktual"), size = 1) +
+  geom_line(aes(y = Prediksi, color = "Prediksi"), size = 1, linetype = "dashed") +
+  labs(title = "Perbandingan Harga Aktual dan Prediksi GARCH(1,2)",
+       x = "Tanggal",
+       y = "Harga",
+       color = "Legenda") +
+  scale_color_manual(values = c("Aktual" = "blue", "Prediksi" = "red")) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))  # Menengahkan judul
+```
+
+# ARCH-GARCH dengan Penerapan Filter Kalman
+alpha1  0.184064    
+beta1   0.277234   
+beta2   0.517518    
+
+```{r}
+# Inisialisasi parameter Kalman Filter
+n <- length(predicted_values7)  # Panjang data prediksi dari GARCH
+x_hat <- matrix(0, n, 3)  # State vector [sigma^2, sigma_t-1^2, epsilon_t-1^2]
+P <- array(0, dim = c(3, 3, n))  # Kovarians state
+
+# Inisialisasi nilai awal dari prediksi GARCH
+x_hat[1, ] <- c(predicted_values7[1], predicted_values7[2], test_data[1]^2)
+P[, , 1] <- diag(c(1, 1, 1))  # Kovarians awal sebagai matriks identitas
+
+# Matriks Transisi (A) dari model GARCH(2,1)
+A <- matrix(c(0.277234, 0.517518, 0.184064, 
+              1, 0, 0,
+              0, 0, 0), 
+            nrow = 3, byrow = TRUE)
+
+# Matriks Pengamatan (H) hanya mengamati epsilon_t-1^2
+H <- matrix(c(0, 0, 1), nrow = 1)
+
+# Noise covariance matrices
+Q <- diag(c(0.1, 0.1, 0.1))  # Process noise covariance
+R <- var(test_data)  # Measurement noise covariance
+
+# Loop Kalman Filter
+for (k in 2:n) {
+  # Prediksi
+  x_hat_prior <- A %*% x_hat[k - 1, ]  # Prediksi state
+  P_prior <- A %*% P[, , k - 1] %*% t(A) + Q  # Prediksi kovarians
+
+  # Update dengan observasi dari test_data (z_k = epsilon_k^2)
+  K <- P_prior %*% t(H) %*% solve(H %*% P_prior %*% t(H) + R)  # Kalman Gain
+  x_hat[k, ] <- x_hat_prior + K %*% (test_data[k] - H %*% x_hat_prior)  # Update state
+  P[, , k] <- (diag(3) - K %*% H) %*% P_prior  # Update kovarians
+}
+
+# Transformasi kembali ke harga asli dengan cumsum log-return
+harga_prediksi_kf <- P0_test * exp(cumsum(x_hat[, 1]))  
+
+# Hitung MAPE
+mape_kf <- mean(abs((harga_prediksi_kf - harga_aktual) / harga_aktual)) * 100
+print(paste("MAPE setelah Kalman Filter: ", mape_kf, "%"))
+```
+
+
+```{r}
+x_hat[1, ]
+```
+
+```{r}
+plot(dates_test, harga_aktual, type = "l", col = "blue", lwd = 2, 
+     xlab = "Tanggal", ylab = "Harga Saham", 
+     main = "Perbandingan Prediksi dan Data Aktual")
+
+# Garis prediksi
+lines(dates_test, harga_prediksi_kf, col = "red", lwd = 2)
+
+# Legenda
+legend("topright", legend = c("Aktual", "Prediksi"), col = c("blue", "red"), lwd = 2)
+```
+
+```{r}
+# Ambil tanggal terbaru dari dates_test
+start_date <- as.Date(max(dates_test)) - 30  # Ambil 90 hari terakhir
+
+# Filter data
+zoom_index <- which(dates_test >= start_date)  
+
+# Subset data untuk zoom
+dates_zoom <- dates_test[zoom_index]
+harga_aktual_zoom <- harga_aktual[zoom_index]
+harga_prediksi_zoom <- harga_prediksi_kf[zoom_index]
+
+# Plot hasil zoom
+plot(dates_zoom, harga_aktual_zoom, type = "l", col = "blue", lwd = 2, 
+     xlab = "Tanggal", ylab = "Harga Saham", 
+     main = "Perbandingan Prediksi dan Data Aktual (1 Bulan Terakhir)",
+     ylim = range(c(harga_aktual_zoom, harga_prediksi_zoom), na.rm = TRUE))
+
+# Garis prediksi
+lines(dates_zoom, harga_prediksi_zoom, col = "red", lwd = 2)
+
+# Legenda
+legend("topright", legend = c("Aktual", "Prediksi"), col = c("blue", "red"), lwd = 2)
+```
+
+```{r}
+# Membuat tabel perbandingan harga aktual dan prediksi dengan Kalman Filter
+tabel_perbandingan_kf <- data.frame(
+  Date = UNVRJK[(train_size + 1):(train_size + length(test_data)), "Date"],  # Ambil tanggal dari data testing
+  Harga_Aktual = harga_aktual,
+  Harga_Prediksi_GARCH = harga_prediksi,  # Hasil dari GARCH
+  Harga_Prediksi_KF = harga_prediksi_kf  # Hasil dari Kalman Filter
+)
+
+print(head(tabel_perbandingan_kf)) # Menampilkan beberapa baris pertama
+print(tail(tabel_perbandingan_kf)) # Menampilkan beberapa baris terakhir
+```
+
+```{r}
+write.csv(tabel_perbandingan_kf, file = "tabel_perbandingan_kf.csv", row.names = FALSE)
+```
+
+```{r}
+plot(dates_test, harga_aktual, type = "l", col = "blue", lwd = 2, 
+     xlab = "Tanggal", ylab = "Harga Saham", 
+     main = "Perbandingan Prediksi dan Data Aktual")
+
+# Garis prediksi GARCH
+lines(dates_test, harga_prediksi, col = "green", lwd = 2, lty = 2)  # Garis putus-putus untuk GARCH
+
+# Garis prediksi Kalman Filter
+lines(dates_test, harga_prediksi_kf, col = "red", lwd = 2)
+
+# Lagenda
+legend("topright", legend = c("Aktual", "Prediksi GARCH", "Prediksi Kalman"),
+       col = c("blue", "green", "red"), lwd = 2, lty = c(1, 2, 1))
+```
+
+```{r}
+# Cari indeks untuk tahun 2024
+total_tahun <- 2024 - 2014 + 1 
+total_data <- length(harga_aktual)  # Panjang total data
+per_tahun <- floor(total_data / total_tahun)  
+
+start_2024 <- total_data - per_tahun  # Awal indeks tahun 2024
+end_2024 <- total_data  # Akhir indeks tahun 2024
+
+# Ambil subset untuk tahun 2024
+harga_aktual_2024 <- harga_aktual[start_2024:end_2024]
+harga_prediksi_2024 <- harga_prediksi_kf[start_2024:end_2024]
+index_2024 <- start_2024:end_2024
+
+# Plot zoom-in untuk tahun 2024
+plot(index_2024, harga_aktual_2024, type = "l", col = "blue", lwd = 2, 
+     ylab = "Harga Saham", main = "Prediksi vs Aktual (Tahun 2024)")
+lines(index_2024, harga_prediksi_2024, col = "red", lwd = 2)
+legend("topright", legend = c("Aktual", "Prediksi KF"), col = c("blue", "red"), lwd = 2)
+```
+
+# Peramalan 3 bulan ke depan dengan GARCH
+```{r}
+n_forecast <- 90  
+forecast_future <- ugarchforecast(garch_fit7, n.ahead = n_forecast)
+
+# Ambil prediksi log return
+predicted_log_returns_future <- as.numeric(fitted(forecast_future))
+
+# Ambil tanggal terakhir dari dataset asli
+last_date <- as.Date(tail(dates_test, 1))  
+
+# Buat rentang tanggal 365 hari ke depan
+future_dates <- seq(from=last_date, by="days", length.out=n_forecast)
+
+# Pastikan P0_future adalah angka terakhir dari harga saham aktual
+P0_future <- as.numeric(tail(Close, 1))
+
+# Transformasi kembali ke harga asli
+harga_prediksi_future <- P0_future * exp(cumsum(predicted_log_returns_future))
+
+# Simpan hasil prediksi dalam data frame
+df_future <- data.frame(Date = future_dates, Prediksi_GARCH = harga_prediksi_future)
+
+# Tampilkan hasil prediksi awal
+print(head(df_future))
+```
+
+# Peramalan 3 bulan ke depan dengan GARCH-KF
+```{r}
+# 1. Prediksi GARCH 
+n_forecast <- 90
+forecast_garch <- ugarchforecast(garch_fit7, n.ahead = n_forecast)
+
+# Hasil prediksi GARCH murni
+garch_pure <- data.frame(
+  Date = seq(from = as.Date(tail(dates_test, 1)), 
+             by = "days", length.out = n_forecast),
+  Return = as.numeric(fitted(forecast_garch)),
+  Volatility = as.numeric(sigma(forecast_garch))
+)
+
+last_price <- as.numeric(tail(Close, 1))  
+garch_pure$Price <- last_price * exp(cumsum(garch_pure$Return)) 
+
+# 2. Prediksi GARCH + Kalman Filter
+# Inisialisasi KF untuk memperbaiki prediksi GARCH
+kf_correction <- numeric(n_forecast)
+kf_vol_adjustment <- numeric(n_forecast)
+
+# Parameter Kalman Filter
+Q <- 1e-6  # Process noise
+R <- var(residuals(garch_fit7, standardize=TRUE))  # Measurement noise
+P <- 1e-4  # Error covariance awal
+x <- 0     # Koreksi awal
+
+for (k in 1:n_forecast) {
+  # Prediksi
+  x_prior <- x
+  P_prior <- P + Q
+  
+  K <- P_prior / (P_prior + R)
+  z <- -0.05 * garch_pure$Volatility[k] 
+  x <- x_prior + K * (z - x_prior)
+  P <- (1 - K) * P_prior
+  
+  # Menyimpan hasil
+  kf_correction[k] <- x
+  kf_vol_adjustment[k] <- 0.3 * x  
+}
+
+# Hasil akhir setelah koreksi
+garch_kf <- data.frame(
+  Date = garch_pure$Date,
+  Return = garch_pure$Return + kf_correction,
+  Volatility = pmax(0.01, garch_pure$Volatility + kf_vol_adjustment)  
+)
+garch_kf$Price <- last_price * exp(cumsum(garch_kf$Return))  
+
+# 3. Menggabungkan Hasil
+results <- cbind(garch_pure, 
+                Price_KF = garch_kf$Price,
+                Volatility_KF = garch_kf$Volatility)
+
+results
+```
+
+```{r}
+tabel_harga <- data.frame(
+  Date = results$Date,
+  GARCH = results$Price,
+  GARCH_KF = results$Price_KF
+)
+
+# Tampilkan 6 baris pertama
+head(tabel_harga)
+```
+
+```{r}
+tail(tabel_harga, 22)
+```
+
+```{r}
+write.csv2(tabel_harga, file = "tabel_harga.csv", row.names = FALSE)
+```
+
+```{r}
+# Plot prediksi dari GARCH + Kalman Filter 
+ggplot(tabel_harga, aes(x = Date)) +
+  geom_line(aes(y = GARCH_KF), color = "red", linewidth = 1.2) +
+  geom_point(aes(y = GARCH_KF), color = "red", size = 1.5)+
+  labs(
+    title = "Prediksi Harga Saham Menggunakan GARCH dengan Kalman Filter",
+    subtitle = paste("Periode 3 bulan ke Depan dari Harga Awal:", last_price),
+    y = "Harga Saham",
+    x = "Tanggal"
+  ) +
+  theme_minimal()
+```
+
+# Validasi
+# Import Dataset Baru (2025)
+```{r}
+UNVRJK2025 <- read.csv("C:/Users/LENOVO/Documents/SMT 8/DATA JAN-MARET 2025.csv", sep=";", stringsAsFactors=FALSE)
+
+str(UNVRJK2025)  # Lihat struktur data
+head(UNVRJK2025)  # Lihat beberapa baris pertama
+
+# Konversi kolom Date ke format tanggal
+UNVRJK2025$Date <- as.Date(UNVRJK2025$Date, format="%d/%m/%Y")
+UNVRJK2025$Close <- as.numeric(UNVRJK2025$Close)
+```
+
+```{r}
+# Ambil hanya 60 hari pertama prediksi 
+jumlah_data_aktual <- nrow(UNVRJK2025)
+
+results_nhari <- results %>%
+  slice(1:jumlah_data_aktual) %>%
+  select(Date, Price_GARCH = Price, Price_KF)
+
+# Gabung dengan data aktual
+tabel_validasi <- UNVRJK2025 %>% 
+  select(Date, Aktual = Close) %>% 
+  left_join(results_nhari, by = "Date")
+
+# Tampilkan hasil
+head(tabel_validasi, 10)
+```
+
+```{r}
+head(tabel_validasi, 31)
+```
+
+```{r}
+# Hapus baris yang ada nilai NA
+tabel_validasi_clean <- tabel_validasi %>% drop_na()
+
+ggplot(tabel_validasi_clean, aes(x = Date)) +
+  geom_line(aes(y = Aktual, color = "Aktual"), linewidth = 1.2) +
+  geom_line(aes(y = Price_GARCH, color = "GARCH"), linetype = "dashed") +
+  geom_line(aes(y = Price_KF, color = "GARCH+KF"), linetype = "dotted") +
+  scale_color_manual(values = c("Aktual" = "black", "GARCH" = "blue", "GARCH+KF" = "red")) +
+  labs(title = "Validasi Prediksi vs Data Aktual (Jan-Feb 2025)",
+       subtitle = "Periode 90 Hari Pertama",
+       y = "Harga Saham",
+       color = "Legenda") +
+  theme_minimal()
+```
+
+```{r}
+# Hapus baris dengan NA (hari dimana belum ada data aktual)
+tabel_validasi_clean <- na.omit(tabel_validasi)
+
+# Hitung MAPE
+mape_garch <- mean(abs((tabel_validasi_clean$Aktual - tabel_validasi_clean$Price_GARCH) / tabel_validasi_clean$Aktual)) * 100
+mape_kf <- mean(abs((tabel_validasi_clean$Aktual - tabel_validasi_clean$Price_KF) / tabel_validasi_clean$Aktual)) * 100
+
+cat("MAPE GARCH:", round(mape_garch, 2), "%\n")
+cat("MAPE GARCH+KF:", round(mape_kf, 2), "%\n")
+```
+
+```{r}
+# Filter data hanya untuk bulan Januari 2025
+januari_kf_vs_aktual <- tabel_validasi_clean %>%
+  filter(month(Date) == 1 & year(Date) == 2025)
+
+# Plot Aktual vs GARCH+Kalman Filter
+ggplot(januari_kf_vs_aktual, aes(x = Date)) +
+  geom_line(aes(y = Aktual, color = "Aktual"), linewidth = 1.2) +
+  geom_line(aes(y = Price_KF, color = "GARCH+KF"), linetype = "dotted", linewidth = 1.2) +
+  scale_color_manual(values = c("Aktual" = "black", "GARCH+KF" = "red")) +
+  labs(title = "Validasi Prediksi GARCH+Kalman Filter vs Aktual - Januari 2025",
+       y = "Harga Saham",
+       x = "Tanggal",
+       color = "Legenda") +
+  theme_minimal()
+```
+
+```{r}
+# Filter Data Hanya Januari 2025 
+tabel_januari <- tabel_validasi %>%
+  filter(Date >= as.Date("2025-01-01") & Date <= as.Date("2025-01-31"))
+
+# Buat Plot Zoom Tanpa GARCH dan Tanpa MAPE
+ggplot(tabel_januari, aes(x = Date)) +
+  geom_line(aes(y = Aktual, color = "Aktual"), linewidth = 1.2) +
+  geom_line(aes(y = Price_KF, color = "GARCH+KF"), linetype = "dotted", linewidth = 0.8) +
+  geom_point(aes(y = Aktual), size = 2, color = "black") +
+  
+  # Atur skala tanggal per 5 hari
+  scale_x_date(date_breaks = "5 days", date_labels = "%d %b") +
+  
+  scale_color_manual(values = c("Aktual" = "black", "GARCH+KF" = "red")) +
+  labs(title = "Validasi Prediksi vs Data Aktual - Januari 2025",
+       subtitle = "Garis titik: GARCH+Kalman Filter",
+       y = "Harga Saham",
+       x = "Tanggal",
+       color = "Legenda") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top")
+```  
+
+```{r}
+# Simpan harga penutupan dari dataset baru sebagai Close_test
+Close_test <- UNVRJK2025$Close
+```
+
+```{r}
+# Peramalan GARCH
+n_forecast <- 90  # Prediksi 3 bulan ke depan
+forecast_garch <- ugarchforecast(garch_fit7, n.ahead = n_forecast)
+
+# Hasil prediksi GARCH murni
+garch_pure <- data.frame(
+  Date = seq(from = as.Date(tail(dates_test, 1)), 
+             by = "days", length.out = n_forecast),
+  Return = as.numeric(fitted(forecast_garch)),
+  Volatility = as.numeric(sigma(forecast_garch))
+)
+
+last_price <- as.numeric(tail(Close, 1))
+if (is.na(last_price)) stop("Harga penutupan terakhir tidak ditemukan. Cek dataset Close.")
+
+# Transformasi kembali ke harga asli
+garch_pure$Price <- last_price * exp(cumsum(garch_pure$Return))
+
+# 2. Perbaikan dengan Kalman Filter
+kf_correction <- numeric(n_forecast)
+kf_vol_adjustment <- numeric(n_forecast)
+
+# Parameter Kalman Filter
+Q <- 1e-6  # Process noise
+R <- var(residuals(garch_fit7, standardize=TRUE), na.rm=TRUE)  # Measurement noise
+P <- 1e-4  # Error covariance awal
+x <- 0     # Koreksi awal
+
+# Hitung residual rata-rata untuk koreksi lebih adaptif
+res_mean <- mean(residuals(garch_fit7, standardize=TRUE), na.rm=TRUE)
+
+for (k in 1:n_forecast) {
+  # Prediksi
+  x_prior <- x
+  P_prior <- P + Q
+  
+  # Update dengan residual rata-rata sebagai koreksi
+  K <- P_prior / (P_prior + R)
+  z <- res_mean * garch_pure$Volatility[k]  # Koreksi berbasis residual
+  x <- x_prior + K * (z - x_prior)
+  P <- (1 - K) * P_prior
+  
+  # Simpan hasil koreksi
+  kf_correction[k] <- x
+  kf_vol_adjustment[k] <- 0.3 * x  # Skala koreksi lebih kecil
+}
+
+# Memastikan volatilitas tidak negatif dengan batas bawah dari distribusi historis
+min_vol <- quantile(garch_pure$Volatility, probs=0.05, na.rm=TRUE)
+garch_kf <- data.frame(
+  Date = garch_pure$Date,
+  Return = garch_pure$Return + kf_correction,
+  Volatility = pmax(min_vol, garch_pure$Volatility + kf_vol_adjustment)
+)
+
+# Transformasi harga kembali ke skala asli
+garch_kf$Price <- last_price * exp(cumsum(garch_kf$Return))
+
+# 4. Menggabungkan hasil analisis
+results <- data.frame(
+  Date = garch_pure$Date,
+  Price_GARCH = garch_pure$Price,
+  Price_KF = garch_kf$Price,
+  Volatility_GARCH = garch_pure$Volatility,
+  Volatility_KF = garch_kf$Volatility
+)
+
+# Simpan hasil
+write.csv(results, "Hasil_Prediksi_GARCH_KF.csv", row.names=FALSE)
+print(head(results))
+```
+
+```{r}
+write.csv2(results, file = "tabel_peramalan2025_kf.csv", row.names = FALSE)
+```
+
+# Peramalan 1 bulan (30 hari) ke depan dengan GARCH-KF
+```{r}
+# 1. Prediksi GARCH
+n_forecast <- 30
+forecast_garch <- ugarchforecast(garch_fit7, n.ahead = n_forecast)
+
+# Hasil prediksi GARCH murni
+garch_pure <- data.frame(
+  Date = seq(from = as.Date(tail(dates_test, 1)), 
+             by = "days", length.out = n_forecast),
+  Return = as.numeric(fitted(forecast_garch)),
+  Volatility = as.numeric(sigma(forecast_garch))
+)
+
+last_price <- as.numeric(tail(Close, 1))  
+garch_pure$Price <- last_price * exp(cumsum(garch_pure$Return))
+
+# 2. Prediksi GARCH + Kalman Filter 
+# Inisialisasi KF untuk memperbaiki prediksi GARCH
+kf_correction <- numeric(n_forecast)
+kf_vol_adjustment <- numeric(n_forecast)
+
+# Parameter Kalman Filter
+Q <- 1e-6  # Process noise
+R <- var(residuals(garch_fit7, standardize=TRUE))  # Measurement noise (pakai standardized residuals)
+P <- 1e-4  # Error covariance awal
+x <- 0     # Koreksi awal
+
+for (k in 1:n_forecast) {
+  # Prediksi
+  x_prior <- x
+  P_prior <- P + Q
+
+  K <- P_prior / (P_prior + R)
+  z <- -0.05 * garch_pure$Volatility[k]  
+  x <- x_prior + K * (z - x_prior)
+  P <- (1 - K) * P_prior
+  
+  # Simpan hasil
+  kf_correction[k] <- x
+  kf_vol_adjustment[k] <- 0.3 * x  
+}
+
+# Hasil akhir setelah koreksi
+garch_kf <- data.frame(
+  Date = garch_pure$Date,
+  Return = garch_pure$Return + kf_correction,
+  Volatility = pmax(0.01, garch_pure$Volatility + kf_vol_adjustment) 
+)
+garch_kf$Price <- last_price * exp(cumsum(garch_kf$Return))  # Gunakan last_price yang sama
+
+# 3. Menggabungkan hasil
+results <- cbind(garch_pure, 
+                Price_KF = garch_kf$Price,
+                Volatility_KF = garch_kf$Volatility)
+
+results
+```
+
+```{r}
+# Plot hanya 30 hari ke depan dari hasil prediksi GARCH + Kalman Filter
+ggplot(results, aes(x = Date)) +
+  geom_line(aes(y = Price_KF), color = "red", linewidth = 1.2) +
+  geom_point(aes(y = Price_KF), color = "red", size = 1.5) +
+  labs(
+    title = "Prediksi Harga Saham 30 Hari ke Depan (GARCH + Kalman Filter)",
+    subtitle = paste("Harga awal:", round(last_price, 2)),
+    y = "Harga Saham",
+    x = "Tanggal"
+  ) +
+  theme_minimal()
+```
