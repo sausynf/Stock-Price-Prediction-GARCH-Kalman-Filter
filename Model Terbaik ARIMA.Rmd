@@ -1,0 +1,1294 @@
+---
+title: "Model Terbaik ARIMA"
+author: "Sausan"
+date: "2025-02-25"
+output: html_document
+---
+
+# Import Library Yang Dibutuhkan
+```{r}
+library("visdat")
+library(ggplot2)
+library(astsa)
+library(tseries)
+library(forecast)
+library(TSA)
+library(TSA)
+library(quantmod)
+library(rugarch)
+library(MLmetrics)
+library(FinTS)
+library(moments)
+```
+
+# Import Dataset
+```{r}
+UNVRJK <- read.csv("C:/Users/LENOVO/Documents/SMT 7/PENULISAN PROPOSAL/UNVR.JK 2014-2025.csv")
+head(UNVRJK)
+```
+
+```{r}
+tail(UNVRJK)
+```
+
+# EDA
+```{r}
+#Melihat dimensi data
+dim(UNVRJK)
+
+#Melihat struktur dataset
+str(UNVRJK)
+
+#Mengecek missing value data
+sapply(UNVRJK, function (x) sum(is.na(x)))
+
+#visualisasi missing value
+vis_miss(UNVRJK)
+```
+
+Berdasarkan output boxplot di atas terlihat bahwa tidak terdapat missing value
+
+# EDA
+```{r}
+#Analisis Deskriptif
+summary(UNVRJK)
+```
+
+# Plot Agregasi
+# Boxplot untuk melihat outlier
+```{r}
+boxplot(UNVRJK$Close, 
+        main = "Boxplot Variabel Close dalam Dataset UNVRJK",
+        xlab = "Close", ylab = "Nilai Close")
+```
+
+Berdasarkan output boxplot di atas terlihat bahwa tidak terdapat outlier
+
+# Feature Selection
+```{r}
+#Ambil Data
+Close <- ts(UNVRJK[,5])
+head(Close)
+```
+
+# Plot Time Series
+```{r}
+UNVRJK$Date <- as.Date(UNVRJK$Date) 
+ggplot(UNVRJK, aes(x = Date, y = Close)) +
+  geom_line() +
+  labs(title = "Plot Time Series UNVRJK", x = "Tahun", y = "Close Price") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))  # Menengahkan judul
+```
+
+## Kesimpulan Plot Time Series
+Dari gambar di atas dapat diketahui bahwa perkembangan harga saham dalam 10 tahun terakhir cukup fluktuatif. Maksud fluktuatif mengindikasikan adanya variasi/perubahan yang signifikan dalam harga saham dari waktu ke waktu. Sehingga dapat disimpulkan bahwa harga saham telah mengalami perubahan yang signifikan selama periode 10 tahun terakhir tanpa memberikan detail spesifik tentang arah/pola fluktuasi tersebut.
+
+# Uji Stationeritas
+## Cek Stationeritas Terhadap Ragam
+```{r}
+bc = BoxCox.lambda(Close)
+bc
+```
+
+Pada output diatas terlihat hasil nilai λ menunjukkan angka 0.3854476 (Jauh dari 1). Jadi dapat disimpulkan bahwa data tersebut tidak stasioner secara ragam.
+
+## Cek Stasioneritas Terhadap Rata-Rata/Rataan
+```{r}
+adf.test(Close)
+```
+
+Pada output diatas terlihat pada uji ADF diperoleh p-values lebih besar dari nilai α (0.6225>0,05) sehingga H0 diterima yang berarti data tidak stationer secara rataan
+
+## Plot ACF dan PACF
+```{r}
+acf2(Close)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data Close. Pada plot di atas terlihat bahwa data belum stasioner karena setiap lagnya keluar dari selang interval.
+
+## Melakukan differencing 1 terhadap data
+```{r}
+diff1.Close = diff(Close)
+plot.ts(diff1.Close)
+```
+
+Pada output diatas terlihat plot pada differencing 1 berdasarkan data Close. Pada plot di atas terlihat bahwa data masih belum stasioner karena masih terlihat fluktuatif. Data mengalami lonjakan naik turun yang cukup besar.
+
+## Plot ACF dan PACF differencing 1 kali
+```{r}
+acf2(diff1.Close)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data differencing 1 kali.
+
+## Melakukan differencing 2 terhadap data
+```{r}
+diff2.Close = diff(diff1.Close)
+plot(diff2.Close)
+```
+
+Pada output diatas terlihat plot pada differencing 2 berdasarkan data differencing 1. Pada plot di atas terlihat bahwa data belum stasioner karena masih terlihat fluktuatif. Data mengalami lonjakan naik turun yang cukup besar.
+
+## Plot ACF dan PACF differencing 2
+```{r}
+acf2(diff2.Close)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data differencing 2 kali.
+
+## Melihat plot dalam bentuk matriks
+```{r}
+par(mfrow=c(3,1))
+plot.ts(Close)
+plot.ts(diff1.Close, col = "blue")
+plot.ts(diff2.Close, col = "red")
+```
+
+Pada output diatas terlihat plot close pada data awal, differencing 1 kali, dan differencing 2 kali. Pada plot differencing 1 itu sudah lurus pada sumbu X namun ada beberapa lonjakan. Pada differencing 2 juga terdapat lonjakan.
+
+## Transformasi
+```{r}
+AP=Close
+log.AP = log(AP)
+par(mfrow = c(2,1))
+plot.ts(AP)
+plot.ts(log.AP, col = 'blue')
+```
+
+Pada output diatas terlihat plot yang sudah di transformasi. Pada plot data tersebut menunjukkan tren naik dan tren turun.
+
+## Melakukan differencing pada log AP
+```{r}
+par(mfrow = c(3,1))
+plot(log.AP)
+diff1.log.AP = diff(log.AP)
+plot.ts(diff1.log.AP)
+diff2.log.AP = diff(diff1.log.AP)
+plot.ts(diff2.log.AP)
+```
+
+Pada output diatas terlihat plot close pada data awal, transformasi logaritma differencing 1 kali, transformasi logartima differencing 2 kali. Pada plot differencing 1 itu lonjakannya kecil berarti data sudah stasioner secara rata2, namun di akhir ada lonjakan besar berarti data tidak stasioner secara ragam. Pada differencing 2 lonjakannya kecil, lalu ada lonjakan besar berarti data tidak stasioner secara ragam. 
+
+## Plot ACF dan PACF dengan transformasi logaritma
+```{r}
+acf2(log.AP)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data dengan transformasi logaritma. Pada plot di atas terlihat bahwa data belum stasioner karena setiap lagnya keluar dari selang interval.
+
+## Plot ACF dan PACF kombinasi transformasi logartima dengan differencing 1
+```{r}
+acf2(diff1.log.AP)
+```
+
+## Plot ACF dan PACF kombinasi transformasi logartima dengan differencing 2
+```{r}
+acf2(diff2.log.AP)
+```
+
+## Kesimpulan
+Jadi, dapat disimpulkan data kombinasi transformasi logartima dengan differencing 1 sudah stabil. Jadi data yang akan digunakan adalah data kombinasi transformasi logartima dengan differencing 1.
+
+## Cek Stationeritas Terhadap Ragam
+```{r}
+bc1 = BoxCox.lambda(diff1.log.AP)
+bc1
+```
+
+Pada output diatas terlihat hasil nilai λ menunjukkan angka 1. Jadi dapat disimpulkan bahwa data tersebut sudah stasioner secara ragam.
+
+## Cek Stasioneritas Terhadap Rata-Rata/Rataan
+```{r}
+adf.test(diff1.log.AP)
+```
+
+Pada output diatas terlihat pada uji ADF diperoleh p-values lebih besar dari nilai α (0,01<0,05) sehingga H0 ditolak yang berarti data stationer secara varians. 
+
+# Model Terbaik Menurut R 
+```{r}
+model1 = auto.arima(diff1.log.AP)
+model1
+```
+
+# EACF
+```{r}
+eacf(diff1.Close)
+```
+
+# Kandidat Model
+## 1. ARIMA (1,1,0) ##Berdasarkan auto arima
+```{r}
+Close.ARIMA.1.1.0 = arima(diff1.log.AP, order = c(1,1,0))
+Close.ARIMA.1.1.0
+```
+
+## Kandidat Model
+## 2. ARIMA (0,1,2)
+```{r}
+Close.ARIMA.1.2 = arima(diff1.log.AP, order = c(0,1,2))
+Close.ARIMA.1.2
+```
+
+## Kandidat Model
+## 3. ARIMA (0,1,3)
+```{r}
+Close.ARIMA.1.3 = arima(diff1.log.AP, order = c(0,1,3))
+Close.ARIMA.1.3
+```
+
+## Kandidat Model
+## 4. ARIMA (0,1,4)
+```{r}
+Close.ARIMA.1.4 = arima(diff1.log.AP, order = c(0,1,4))
+Close.ARIMA.1.4
+```
+
+## Kandidat Model
+## 5. ARIMA (0,1,5)
+```{r}
+Close.ARIMA.1.5 = arima(diff1.log.AP, order = c(0,1,5))
+Close.ARIMA.1.5
+```
+
+## Kandidat Model
+## 6. ARIMA (0,1,6)
+```{r}
+Close.ARIMA.1.6 = arima(diff1.log.AP, order = c(0,1,6))
+Close.ARIMA.1.6
+```
+
+## Kandidat Model
+## 7. ARIMA (0,1,7)
+```{r}
+Close.ARIMA.1.7 = arima(diff1.log.AP, order = c(0,1,7))
+Close.ARIMA.1.7
+```
+
+## Kandidat Model
+## 8. ARIMA (0,1,9)
+```{r}
+Close.ARIMA.1.9 = arima(diff1.log.AP, order = c(0,1,9))
+Close.ARIMA.1.9
+```
+
+## Kandidat Model
+## 9. ARIMA (0,1,10)
+```{r}
+Close.ARIMA.1.10 = arima(diff1.log.AP, order = c(0,1,10))
+Close.ARIMA.1.10
+```
+
+## Kandidat Model
+## 10. ARIMA (0,1,11)
+```{r}
+Close.ARIMA.1.11 = arima(diff1.log.AP, order = c(0,1,11))
+Close.ARIMA.1.11
+```
+
+## Kandidat Model
+## 11. ARIMA (0,1,13)
+```{r}
+Close.ARIMA.1.13 = arima(diff1.log.AP, order = c(0,1,13))
+Close.ARIMA.1.13
+```
+
+## Kandidat Model
+## 11. ARIMA (1,1,1) 
+```{r}
+Close.ARIMA.1.1.1 = arima(diff1.log.AP, order = c(1,1,1))
+Close.ARIMA.1.1.1
+```
+
+## Kandidat Model
+## 12. ARIMA (1,1,2)
+```{r}
+Close.ARIMA.1.1.2 = arima(diff1.log.AP, order = c(1,1,2))
+Close.ARIMA.1.1.2
+```
+
+## Kandidat Model
+## 13. ARIMA (1,1,3)
+```{r}
+Close.ARIMA.1.1.3 = arima(diff1.log.AP, order = c(1,1,3))
+Close.ARIMA.1.1.3
+```
+
+## Kandidat Model
+## 14. ARIMA (1,1,4)
+```{r}
+Close.ARIMA.1.1.4 = arima(diff1.log.AP, order = c(1,1,4))
+Close.ARIMA.1.1.4
+```
+
+## Kandidat Model
+## 15. ARIMA (1,1,5)
+```{r}
+Close.ARIMA.1.1.5 = arima(diff1.log.AP, order = c(1,1,5))
+Close.ARIMA.1.1.5
+```
+
+## Kandidat Model
+## 16. ARIMA (1,1,6)
+```{r}
+Close.ARIMA.1.1.6 = arima(diff1.log.AP, order = c(1,1,6))
+Close.ARIMA.1.1.6
+```
+
+## Kandidat Model
+## 17. ARIMA (1,1,7)
+```{r}
+Close.ARIMA.1.1.7 = arima(diff1.log.AP, order = c(1,1,7))
+Close.ARIMA.1.1.7
+```
+
+## Kandidat Model
+## 18. ARIMA (1,1,9)
+```{r}
+Close.ARIMA.1.1.9 = arima(diff1.log.AP, order = c(1,1,9))
+Close.ARIMA.1.1.9
+```
+
+## Kandidat Model
+## 19. ARIMA (1,1,10)
+```{r}
+Close.ARIMA.1.1.10 = arima(diff1.log.AP, order = c(1,1,10))
+Close.ARIMA.1.1.10
+```
+
+## Kandidat Model
+## 20. ARIMA (1,1,11)
+```{r}
+Close.ARIMA.1.1.11 = arima(diff1.log.AP, order = c(1,1,11))
+Close.ARIMA.1.1.11
+```
+
+## Kandidat Model
+## 21. ARIMA (1,1,13)
+```{r}
+Close.ARIMA.1.1.13 = arima(diff1.log.AP, order = c(1,1,13))
+Close.ARIMA.1.1.13
+```
+
+## Kandidat Model
+## 22. ARIMA (2,1,2)
+```{r}
+Close.ARIMA.2.1.2 = arima(diff1.log.AP, order = c(2,1,2))
+Close.ARIMA.2.1.2
+```
+
+## Kandidat Model
+## 23. ARIMA (2,1,3)
+```{r}
+Close.ARIMA.2.1.3 = arima(diff1.log.AP, order = c(2,1,3))
+Close.ARIMA.2.1.3
+```
+
+## Kandidat Model
+## 24. ARIMA (2,1,4)
+```{r}
+Close.ARIMA.2.1.4 = arima(diff1.log.AP, order = c(2,1,4))
+Close.ARIMA.2.1.4
+```
+
+## Kandidat Model
+## 25. ARIMA (2,1,5)
+```{r}
+Close.ARIMA.2.1.5 = arima(diff1.log.AP, order = c(2,1,5))
+Close.ARIMA.2.1.5
+```
+
+## Kandidat Model
+## 26. ARIMA (2,1,6)
+```{r}
+Close.ARIMA.2.1.6 = arima(diff1.log.AP, order = c(2,1,6))
+Close.ARIMA.2.1.6
+```
+
+## Kandidat Model
+## 27. ARIMA (2,1,7)
+```{r}
+Close.ARIMA.2.1.7 = arima(diff1.log.AP, order = c(2,1,7))
+Close.ARIMA.2.1.7
+```
+
+## Kandidat Model
+## 28. ARIMA (2,1,9)
+```{r}
+Close.ARIMA.2.1.9 = arima(diff1.log.AP, order = c(2,1,9))
+Close.ARIMA.2.1.9
+```
+
+## Kandidat Model
+## 29. ARIMA (2,1,10)
+```{r}
+Close.ARIMA.2.1.10 = arima(diff1.log.AP, order = c(2,1,10))
+Close.ARIMA.2.1.10
+```
+
+## Kandidat Model
+## 30. ARIMA (2,1,11)
+```{r}
+Close.ARIMA.2.1.11 = arima(diff1.log.AP, order = c(2,1,11))
+Close.ARIMA.2.1.11
+```
+
+## Kandidat Model
+## 31. ARIMA (2,1,13)
+```{r}
+Close.ARIMA.2.1.13 = arima(diff1.log.AP, order = c(2,1,13))
+Close.ARIMA.2.1.13
+```
+
+## Kandidat Model
+## 32. ARIMA (3,1,3)
+```{r}
+Close.ARIMA.3.1.3 = arima(diff1.log.AP, order = c(3,1,3))
+Close.ARIMA.3.1.3
+```
+
+## Kandidat Model
+## 33. ARIMA (3,1,4)
+```{r}
+Close.ARIMA.3.1.4 = arima(diff1.log.AP, order = c(3,1,4))
+Close.ARIMA.3.1.4
+```
+
+## Kandidat Model
+## 34. ARIMA (3,1,5)
+```{r}
+Close.ARIMA.3.1.5 = arima(diff1.log.AP, order = c(3,1,5))
+Close.ARIMA.3.1.5
+```
+
+## Kandidat Model
+## 35. ARIMA (3,1,6)
+```{r}
+Close.ARIMA.3.1.6 = arima(diff1.log.AP, order = c(3,1,6))
+Close.ARIMA.3.1.6
+```
+
+## Kandidat Model
+## 36. ARIMA (3,1,7)
+```{r}
+Close.ARIMA.3.1.7 = arima(diff1.log.AP, order = c(3,1,7))
+Close.ARIMA.3.1.7
+```
+
+## Kandidat Model
+## 37. ARIMA (3,1,7)
+```{r}
+Close.ARIMA.3.1.7 = arima(diff1.log.AP, order = c(3,1,8))
+Close.ARIMA.3.1.7
+```
+
+## Kandidat Model
+## 38. ARIMA (3,1,9)
+```{r}
+Close.ARIMA.3.1.9 = arima(diff1.log.AP, order = c(3,1,9))
+Close.ARIMA.3.1.9
+```
+
+## Kandidat Model
+## 39. ARIMA (3,1,10)
+```{r}
+Close.ARIMA.3.1.10 = arima(diff1.log.AP, order = c(3,1,10))
+Close.ARIMA.3.1.10
+```
+
+## Kandidat Model
+## 40. ARIMA (3,1,11)
+```{r}
+Close.ARIMA.3.1.11 = arima(diff1.log.AP, order = c(3,1,11))
+Close.ARIMA.3.1.11
+```
+
+## Kandidat Model
+## 41. ARIMA (3,1,13)
+```{r}
+Close.ARIMA.3.1.13 = arima(diff1.log.AP, order = c(3,1,13))
+Close.ARIMA.3.1.13
+```
+
+## Kandidat Model
+## 42. ARIMA (4,1,2)
+```{r}
+Close.ARIMA.4.1.2 = arima(diff1.log.AP, order = c(4,1,2))
+Close.ARIMA.4.1.2
+```
+
+## Kandidat Model
+## 43. ARIMA (4,1,3)
+```{r}
+Close.ARIMA.4.1.3 = arima(diff1.log.AP, order = c(4,1,3))
+Close.ARIMA.4.1.3
+```
+
+## Kandidat Model
+## 44. ARIMA (4,1,4)
+```{r}
+Close.ARIMA.4.1.4 = arima(diff1.log.AP, order = c(4,1,4))
+Close.ARIMA.4.1.4
+```
+
+## Kandidat Model
+## 45. ARIMA (4,1,5)
+```{r}
+Close.ARIMA.4.1.5 = arima(diff1.log.AP, order = c(4,1,5))
+Close.ARIMA.4.1.5
+```
+
+## Kandidat Model
+## 46. ARIMA (4,1,6)
+```{r}
+Close.ARIMA.4.1.6 = arima(diff1.log.AP, order = c(4,1,6))
+Close.ARIMA.4.1.6
+```
+
+## Kandidat Model
+## 47. ARIMA (4,1,7)
+```{r}
+Close.ARIMA.4.1.7 = arima(diff1.log.AP, order = c(4,1,7))
+Close.ARIMA.4.1.7
+```
+
+## Kandidat Model
+## 48. ARIMA (4,1,8)
+```{r}
+Close.ARIMA.4.1.8 = arima(diff1.log.AP, order = c(4,1,8))
+Close.ARIMA.4.1.8
+```
+
+## Kandidat Model
+## 49. ARIMA (4,1,9)
+```{r}
+Close.ARIMA.4.1.9 = arima(diff1.log.AP, order = c(4,1,9))
+Close.ARIMA.4.1.9
+```
+
+## Kandidat Model
+## 50. ARIMA (4,1,10)
+```{r}
+Close.ARIMA.4.1.10 = arima(diff1.log.AP, order = c(4,1,10))
+Close.ARIMA.4.1.10
+```
+
+## Kandidat Model
+## 51. ARIMA (4,1,11)
+```{r}
+Close.ARIMA.4.1.11 = arima(diff1.log.AP, order = c(4,1,11))
+Close.ARIMA.4.1.11
+```
+
+## Kandidat Model
+## 52. ARIMA (4,1,12)
+```{r}
+Close.ARIMA.4.1.12 = arima(diff1.log.AP, order = c(4,1,12))
+Close.ARIMA.4.1.12
+```
+
+## Kandidat Model
+## 53. ARIMA (4,1,13)
+```{r}
+Close.ARIMA.4.1.13 = arima(diff1.log.AP, order = c(4,1,13))
+Close.ARIMA.4.1.13
+```
+
+## Kandidat Model
+## 54. ARIMA (5,1,3)
+```{r}
+Close.ARIMA.5.1.3 = arima(diff1.log.AP, order = c(5,1,3))
+Close.ARIMA.5.1.3
+```
+
+## Kandidat Model
+## 55. ARIMA (5,1,4)
+```{r}
+Close.ARIMA.5.1.4 = arima(diff1.log.AP, order = c(5,1,4))
+Close.ARIMA.5.1.4
+```
+
+## Kandidat Model
+## 56. ARIMA (5,1,5)
+```{r}
+Close.ARIMA.5.1.5 = arima(diff1.log.AP, order = c(5,1,5))
+Close.ARIMA.5.1.5
+```
+
+## Kandidat Model
+## 57. ARIMA (5,1,6)
+```{r}
+Close.ARIMA.5.1.6 = arima(diff1.log.AP, order = c(5,1,6))
+Close.ARIMA.5.1.6
+```
+
+## Kandidat Model
+## 58. ARIMA (5,1,7)
+```{r}
+Close.ARIMA.5.1.7 = arima(diff1.log.AP, order = c(5,1,7))
+Close.ARIMA.5.1.7
+```
+
+## Kandidat Model
+## 59. ARIMA (5,1,8)
+```{r}
+Close.ARIMA.5.1.8 = arima(diff1.log.AP, order = c(5,1,8))
+Close.ARIMA.5.1.8
+```
+
+## Kandidat Model
+## 60. ARIMA (5,1,9)
+```{r}
+Close.ARIMA.5.1.9 = arima(diff1.log.AP, order = c(5,1,9))
+Close.ARIMA.5.1.9
+```
+
+## Kandidat Model
+## 61. ARIMA (5,1,10)
+```{r}
+Close.ARIMA.5.1.10 = arima(diff1.log.AP, order = c(5,1,10))
+Close.ARIMA.5.1.10
+```
+
+## Kandidat Model
+## 62. ARIMA (5,1,11)
+```{r}
+Close.ARIMA.5.1.11 = arima(diff1.log.AP, order = c(5,1,11))
+Close.ARIMA.5.1.11
+```
+
+## Kandidat Model
+## 63. ARIMA (5,1,12)
+```{r}
+Close.ARIMA.5.1.12 = arima(diff1.log.AP, order = c(5,1,12))
+Close.ARIMA.5.1.12
+```
+
+## Kandidat Model
+## 64. ARIMA (5,1,13)
+```{r}
+Close.ARIMA.5.1.13 = arima(diff1.log.AP, order = c(5,1,13))
+Close.ARIMA.5.1.13
+```
+
+## Kandidat Model
+## 65. ARIMA (6,1,3)
+```{r}
+Close.ARIMA.6.1.3 = arima(diff1.log.AP, order = c(6,1,3))
+Close.ARIMA.6.1.3
+```
+
+## Kandidat Model
+## 66. ARIMA (6,1,4)
+```{r}
+Close.ARIMA.6.1.4 = arima(diff1.log.AP, order = c(6,1,4))
+Close.ARIMA.6.1.4
+```
+
+## Kandidat Model
+## 67. ARIMA (6,1,6)
+```{r}
+Close.ARIMA.6.1.6 = arima(diff1.log.AP, order = c(6,1,6))
+Close.ARIMA.6.1.6
+```
+
+## Kandidat Model
+## 68. ARIMA (6,1,7)
+```{r}
+Close.ARIMA.6.1.7 = arima(diff1.log.AP, order = c(6,1,7))
+Close.ARIMA.6.1.7
+```
+
+## Kandidat Model
+## 69. ARIMA (6,1,8)
+```{r}
+Close.ARIMA.6.1.8 = arima(diff1.log.AP, order = c(6,1,8))
+Close.ARIMA.6.1.8
+```
+
+## Kandidat Model
+## 70. ARIMA (6,1,9)
+```{r}
+Close.ARIMA.6.1.9 = arima(diff1.log.AP, order = c(6,1,9))
+Close.ARIMA.6.1.9
+```
+
+## Kandidat Model
+## 71. ARIMA (6,1,10)
+```{r}
+Close.ARIMA.6.1.10 = arima(diff1.log.AP, order = c(6,1,10))
+Close.ARIMA.6.1.10
+```
+
+## Kandidat Model
+## 72. ARIMA (6,1,11)
+```{r}
+Close.ARIMA.6.1.11 = arima(diff1.log.AP, order = c(6,1,11))
+Close.ARIMA.6.1.11
+```
+
+## Kandidat Model
+## 73. ARIMA (6,1,12)
+```{r}
+Close.ARIMA.6.1.12 = arima(diff1.log.AP, order = c(6,1,12))
+Close.ARIMA.6.1.12
+```
+
+## Kandidat Model
+## 74. ARIMA (6,1,13)
+```{r}
+Close.ARIMA.6.1.13 = arima(diff1.log.AP, order = c(6,1,13))
+Close.ARIMA.6.1.13
+```
+
+## Kandidat Model
+## 75. ARIMA (7,1,2)
+```{r}
+Close.ARIMA.7.1.2 = arima(diff1.log.AP, order = c(7,1,2))
+Close.ARIMA.7.1.2
+```
+
+## Kandidat Model
+## 76. ARIMA (7,1,3)
+```{r}
+Close.ARIMA.7.1.3 = arima(diff1.log.AP, order = c(7,1,3))
+Close.ARIMA.7.1.3
+```
+
+## Kandidat Model
+## 77. ARIMA (7,1,4)
+```{r}
+Close.ARIMA.7.1.4 = arima(diff1.log.AP, order = c(7,1,4))
+Close.ARIMA.7.1.4
+```
+
+## Kandidat Model
+## 78. ARIMA (7,1,7)
+```{r}
+Close.ARIMA.7.1.7 = arima(diff1.log.AP, order = c(7,1,7))
+Close.ARIMA.7.1.7
+```
+
+## Kandidat Model
+## 79. ARIMA (7,1,8)
+```{r}
+Close.ARIMA.7.1.8 = arima(diff1.log.AP, order = c(7,1,8))
+Close.ARIMA.7.1.8
+```
+
+## Kandidat Model
+## 80. ARIMA (7,1,9)
+```{r}
+Close.ARIMA.7.1.9 = arima(diff1.log.AP, order = c(7,1,9))
+Close.ARIMA.7.1.9
+```
+
+## Kandidat Model
+## 81. ARIMA (7,1,10)
+```{r}
+Close.ARIMA.7.1.10 = arima(diff1.log.AP, order = c(7,1,10))
+Close.ARIMA.7.1.10
+```
+
+## Kandidat Model
+## 82. ARIMA (7,1,11)
+```{r}
+Close.ARIMA.7.1.11 = arima(diff1.log.AP, order = c(7,1,11))
+Close.ARIMA.7.1.11
+```
+
+## Kandidat Model
+## 83. ARIMA (7,1,12)
+```{r}
+Close.ARIMA.7.1.12 = arima(diff1.log.AP, order = c(7,1,12))
+Close.ARIMA.7.1.12
+```
+
+## Kandidat Model
+## 84. ARIMA (7,1,13)
+```{r}
+Close.ARIMA.7.1.13 = arima(diff1.log.AP, order = c(7,1,13))
+Close.ARIMA.7.1.13
+```
+
+# Interpretasi Output Kandidat Model ARIMA
+Akaike Information Criterion (AIC) digunakan untuk membandingkan seberapa baik beberapa model statistik. Semakin rendah nilai AIC, semakin baik modelnya. 
+
+# List semua model ARIMA yang sudah dibuat
+```{r}
+models <- list(
+  ARIMA_1_1_0 = Close.ARIMA.1.1.0,
+  ARIMA_0_1_2 = Close.ARIMA.1.2,
+  ARIMA_0_1_3 = Close.ARIMA.1.3,
+  ARIMA_0_1_4 = Close.ARIMA.1.4,
+  ARIMA_0_1_5 = Close.ARIMA.1.5,
+  ARIMA_0_1_6 = Close.ARIMA.1.6,
+  ARIMA_0_1_7 = Close.ARIMA.1.7,
+  ARIMA_0_1_9 = Close.ARIMA.1.9,
+  ARIMA_0_1_10 = Close.ARIMA.1.10,
+  ARIMA_0_1_11 = Close.ARIMA.1.11,
+  ARIMA_0_1_13 = Close.ARIMA.1.13,
+  
+  ARIMA_1_1_1 = Close.ARIMA.1.1.1,
+  ARIMA_1_1_2 = Close.ARIMA.1.1.2,
+  ARIMA_1_1_3 = Close.ARIMA.1.1.3,
+  ARIMA_1_1_4 = Close.ARIMA.1.1.4,
+  ARIMA_1_1_5 = Close.ARIMA.1.1.5,
+  ARIMA_1_1_6 = Close.ARIMA.1.1.6,
+  ARIMA_1_1_7 = Close.ARIMA.1.1.7,
+  ARIMA_1_1_9 = Close.ARIMA.1.1.9,
+  ARIMA_1_1_10 = Close.ARIMA.1.1.10,
+  ARIMA_1_1_11 = Close.ARIMA.1.1.11,
+  ARIMA_1_1_13 = Close.ARIMA.1.1.13,
+  
+  ARIMA_2_1_2 = Close.ARIMA.2.1.2,
+  ARIMA_2_1_3 = Close.ARIMA.2.1.3,
+  ARIMA_2_1_4 = Close.ARIMA.2.1.4,
+  ARIMA_2_1_5 = Close.ARIMA.2.1.5,
+  ARIMA_2_1_6 = Close.ARIMA.2.1.6,
+  ARIMA_2_1_7 = Close.ARIMA.2.1.7,
+  ARIMA_2_1_9 = Close.ARIMA.2.1.9,
+  ARIMA_2_1_10 = Close.ARIMA.2.1.10,
+  ARIMA_2_1_11 = Close.ARIMA.2.1.11,
+  ARIMA_2_1_13 = Close.ARIMA.2.1.13,
+  
+  ARIMA_3_1_3 = Close.ARIMA.3.1.3,
+  ARIMA_3_1_4 = Close.ARIMA.3.1.4,
+  ARIMA_3_1_5 = Close.ARIMA.3.1.5,
+  ARIMA_3_1_6 = Close.ARIMA.3.1.6,
+  ARIMA_3_1_7 = Close.ARIMA.3.1.7,
+  ARIMA_3_1_9 = Close.ARIMA.3.1.9,
+  ARIMA_3_1_10 = Close.ARIMA.3.1.10,
+  ARIMA_3_1_11 = Close.ARIMA.3.1.11,
+  ARIMA_3_1_13 = Close.ARIMA.3.1.13,
+  
+  ARIMA_4_1_2 = Close.ARIMA.4.1.2,
+  ARIMA_4_1_3 = Close.ARIMA.4.1.3,
+  ARIMA_4_1_4 = Close.ARIMA.4.1.4,
+  ARIMA_4_1_5 = Close.ARIMA.4.1.5,
+  ARIMA_4_1_6 = Close.ARIMA.4.1.6,
+  ARIMA_4_1_7 = Close.ARIMA.4.1.7,
+  ARIMA_4_1_8 = Close.ARIMA.4.1.8,
+  ARIMA_4_1_9 = Close.ARIMA.4.1.9,
+  ARIMA_4_1_10 = Close.ARIMA.4.1.10,
+  ARIMA_4_1_11 = Close.ARIMA.4.1.11,
+  ARIMA_4_1_13 = Close.ARIMA.4.1.13, 
+  
+  ARIMA_5_1_3 = Close.ARIMA.5.1.3,
+  ARIMA_5_1_4 = Close.ARIMA.5.1.4,
+  ARIMA_5_1_5 = Close.ARIMA.5.1.5,
+  ARIMA_5_1_6 = Close.ARIMA.5.1.6,
+  ARIMA_5_1_7 = Close.ARIMA.5.1.7,
+  ARIMA_5_1_8 = Close.ARIMA.5.1.8,
+  ARIMA_5_1_9 = Close.ARIMA.5.1.9,
+  ARIMA_5_1_10 = Close.ARIMA.5.1.10,
+  ARIMA_5_1_11 = Close.ARIMA.5.1.11,
+  ARIMA_5_1_13 = Close.ARIMA.5.1.13,
+  
+  ARIMA_6_1_3 = Close.ARIMA.6.1.3,
+  ARIMA_6_1_4 = Close.ARIMA.6.1.4,
+  ARIMA_6_1_6 = Close.ARIMA.6.1.6,
+  ARIMA_6_1_7 = Close.ARIMA.6.1.7,
+  ARIMA_6_1_8 = Close.ARIMA.6.1.8,
+  ARIMA_6_1_9 = Close.ARIMA.6.1.9,
+  ARIMA_6_1_10 = Close.ARIMA.6.1.10,
+  ARIMA_6_1_11 = Close.ARIMA.6.1.11,
+  ARIMA_6_1_13 = Close.ARIMA.6.1.13,
+  
+  ARIMA_7_1_2 = Close.ARIMA.7.1.2,
+  ARIMA_7_1_3 = Close.ARIMA.7.1.3,
+  ARIMA_7_1_4 = Close.ARIMA.7.1.4,
+  ARIMA_7_1_7 = Close.ARIMA.7.1.7,
+  ARIMA_7_1_8 = Close.ARIMA.7.1.8,
+  ARIMA_7_1_9 = Close.ARIMA.7.1.9,
+  ARIMA_7_1_10 = Close.ARIMA.7.1.10,
+  ARIMA_7_1_11 = Close.ARIMA.7.1.11,
+  ARIMA_7_1_13 = Close.ARIMA.7.1.13
+)
+
+# Buat dataframe untuk menyimpan nilai AIC
+aic_values <- data.frame(
+  Model = names(models),
+  AIC = sapply(models, function(model) AIC(model))
+)
+```
+
+# Mengurutkan Nilai AIC Terendah
+```{r}
+# Urutkan dataframe berdasarkan nilai AIC
+aic_values <- aic_values[order(aic_values$AIC), ]
+
+# Ambil 5 model dengan nilai AIC terkecil
+top_5_models <- head(aic_values, 5)
+
+# Tampilkan hasil dalam format tabel
+cat("\n5 Model dengan AIC terkecil:\n")
+cat(sprintf("%-15s %-10s\n", "Model", "AIC"))
+cat(sprintf("%-15s %-10.2f\n", top_5_models$Model, top_5_models$AIC))
+```
+Berdasarkan kriteria AIC, 
+- **Model ARIMA (2,1,11)** -13888.77 
+- **Model ARIMA (5,1,7)** -13887.60
+- **Model ARIMA (2,1,3)** -13886.83
+- **Model ARIMA (2,1,13)** -13886.69
+- **Nodel ARIMA (5,1,13)** -13886.59 
+
+# Uji Diagnostik Model ARIMA Yang Sudah Didapatkan
+# ARIMA (2,1,11)
+## Plot Residual
+```{r}
+Close.UNVRJK = arima(diff1.log.AP, order = c(2,1,11))
+Res.Close = residuals(Close.UNVRJK)
+plot(Res.Close, ylab = "Residual", type = "o")
+abline(h=0, col = "red")
+```
+
+Pada output di atas terlihat plot residual yang mempermudah kita untuk melihat residual yang tidak wajar. Berdasarkan plot di atas terlihat bahwa tidak terdapat tren pada residual.
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(Res.Close)
+qqline(Res.Close)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(Res.Close, "pnorm", mean=mean(Res.Close), sd=sd(Res.Close))
+```
+
+Karena nilai p-value (2.243e-14) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. 
+
+```{r}
+kurtosis(Res.Close)
+```
+
+Nilai kurtosis residual (Res.Close) yang kamu dapatkan adalah 10.12833, yang jauh lebih besar dari 3. Ini berarti distribusi residualnya leptokurtic (lebih runcing dari distribusi normal), yang menunjukkan bahwa data memiliki lebih banyak outlier dibanding distribusi normal.
+
+# Plot Agregasi
+## Boxplot untuk melihat outlier
+```{r}
+boxplot(Res.Close, main = "Boxplot Residual", ylab = "Residual", col = "lightblue", border = "black")
+abline(h = mean(Res.Close), col = "red", lwd = 2, lty = 2)  # Garis putus-putus merah di mean
+```
+
+Boxplot residual menunjukkan banyak outlier di kedua sisi, yang konsisten dengan nilai kurtosis tinggi (10.12833) dan mengindikasikan distribusi dengan ekor panjang. Jika residual berdistribusi normal, seharusnya whisker tidak terlalu panjang dan jumlah outlier lebih sedikit. Banyaknya outlier ini juga sejalan dengan hasil uji Kolmogorov-Smirnov yang menunjukkan p-value < 2.2e-16, mengindikasikan bahwa residual tidak mengikuti distribusi normal.
+
+```{r}
+skewness(Res.Close)  # Jika jauh dari 0, kemungkinan butuh sstd
+```
+
+## ACF Residual
+Untuk memerika asumsi kebebasan derau (noise), kita bisa memeriksa fungsi autokorelasi sampel residual.
+```{r}
+acf(Res.Close)
+```
+
+Berdasarkan plot fungsi autokorelasi sampel terlihat bahwa tidak ada yang melewati batas garis putus-putus. 
+
+## Menghitung nilai Ljung-Box
+```{r}
+ljung_box <- Box.test(Res.Close, lag = 25, type = "Ljung-Box")
+ljung_box
+```
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.9975) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+## LJung-Box Statistik
+```{r}
+tsdiag(Close.UNVRJK, gof.lag =25)
+```
+
+Berdasarkan plot Ljung-Box terlihat bahwa tidak ada p-value yang berada di bawah garis putus-putus (nilai 0.05). 
+
+## Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(Res.Close, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 2.2e-16 yang berarti < alpha (0,05). Hal tersebut berarti menolak Ho (tidak ada efek arch) yang menandakan terdapat ada efek arch pada ARIMA (2,1,11)
+
+# ARIMA (5,1,7)
+## Plot Residual
+```{r}
+Close.UNVRJK517 = arima(diff1.log.AP, order = c(5,1,7))
+Res.Close517 = residuals(Close.UNVRJK517)
+plot(Res.Close517, ylab = "Residual", type = "o")
+abline(h=0, col = "red")
+```
+
+Pada output di atas terlihat plot residual yang mempermudah kita untuk melihat residual yang tidak wajar. Berdasarkan plot di atas terlihat bahwa tidak terdapat tren pada residual.
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(Res.Close517)
+qqline(Res.Close517)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(Res.Close517, "pnorm", mean=mean(Res.Close517), sd=sd(Res.Close517))
+```
+
+Karena nilai p-value (1.976e-14) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. 
+
+```{r}
+kurtosis(Res.Close517)
+```
+
+Nilai kurtosis residual (Res.Close) yang kamu dapatkan adalah 10.49032, yang jauh lebih besar dari 3. Ini berarti distribusi residualnya leptokurtic (lebih runcing dari distribusi normal), yang menunjukkan bahwa data memiliki lebih banyak outlier dibanding distribusi normal.
+
+## Plot Agregasi
+# Boxplot untuk melihat outlier
+```{r}
+boxplot(Res.Close517, main = "Boxplot Residual", ylab = "Residual", col = "lightblue", border = "black")
+abline(h = mean(Res.Close517), col = "red", lwd = 2, lty = 2)  # Garis putus-putus merah di mean
+```
+
+Boxplot residual menunjukkan banyak outlier di kedua sisi, yang konsisten dengan nilai kurtosis tinggi (10.49032) dan mengindikasikan distribusi dengan ekor panjang. Jika residual berdistribusi normal, seharusnya whisker tidak terlalu panjang dan jumlah outlier lebih sedikit. Banyaknya outlier ini juga sejalan dengan hasil uji Kolmogorov-Smirnov yang menunjukkan p-value < 2.2e-16, mengindikasikan bahwa residual tidak mengikuti distribusi normal.
+
+```{r}
+skewness(Res.Close517)  # Jika jauh dari 0, kemungkinan butuh sstd
+```
+
+## ACF Residual
+Untuk memerika asumsi kebebasan derau (noise), kita bisa memeriksa fungsi autokorelasi sampel residual.
+```{r}
+acf(Res.Close517)
+```
+
+Berdasarkan plot fungsi autokorelasi sampel terlihat bahwa tidak ada yang melewati batas garis putus-putus. 
+
+## Menghitung nilai Ljung-Box
+```{r}
+ljung_box517 <- Box.test(Res.Close517, lag = 25, type = "Ljung-Box")
+ljung_box517
+```
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.7675) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+## LJung-Box Statistik
+```{r}
+tsdiag(Close.UNVRJK517, gof.lag =25)
+```
+
+Berdasarkan plot Ljung-Box terlihat bahwa tidak ada p-value yang berada di bawah garis putus-putus (nilai 0.05). 
+
+## Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(Res.Close517, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 2.2e-16 yang berarti < alpha (0,05). Hal tersebut berarti menolak Ho (tidak ada efek arch) yang menandakan terdapat ada efek arch pada ARIMA (5,1,7)
+
+# ARIMA (2,1,3)
+## Plot Residual
+```{r}
+Close.UNVRJK213 = arima(diff1.log.AP, order = c(2,1,3))
+Res.Close213 = residuals(Close.UNVRJK213)
+plot(Res.Close213, ylab = "Residual", type = "o")
+abline(h=0, col = "red")
+```
+
+Pada output di atas terlihat plot residual yang mempermudah kita untuk melihat residual yang tidak wajar. Berdasarkan plot di atas terlihat bahwa tidak terdapat tren pada residual.
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(Res.Close213)
+qqline(Res.Close213)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(Res.Close213, "pnorm", mean=mean(Res.Close213), sd=sd(Res.Close213))
+```
+
+Karena nilai p-value (9.104e-15) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. 
+
+```{r}
+kurtosis(Res.Close213)
+```
+
+Nilai kurtosis residual (Res.Close) yang kamu dapatkan adalah 10.35838, yang jauh lebih besar dari 3. Ini berarti distribusi residualnya leptokurtic (lebih runcing dari distribusi normal), yang menunjukkan bahwa data memiliki lebih banyak outlier dibanding distribusi normal.
+
+```{r}
+skewness(Res.Close213)  # Jika jauh dari 0, kemungkinan butuh sstd
+```
+
+## ACF Residual
+Untuk memerika asumsi kebebasan derau (noise), kita bisa memeriksa fungsi autokorelasi sampel residual.
+```{r}
+acf(Res.Close213)
+```
+
+Berdasarkan plot fungsi autokorelasi sampel terlihat bahwa ada yang melewati batas garis putus-putus. Dengan demikian, dapat dikatakan bahwa terdapat autokorelasi pada residual. 
+
+## Menghitung nilai Ljung-Box
+```{r}
+ljung_box213 <- Box.test(Res.Close213, lag = 25, type = "Ljung-Box")
+ljung_box213
+```
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.4173) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+## LJung-Box Statistik
+```{r}
+tsdiag(Close.UNVRJK213, gof.lag =25)
+```
+
+Berdasarkan plot Ljung-Box terlihat bahwa ada p-value yang berada di bawah garis putus-putus (nilai 0.05). 
+
+Jadi, residual yang diestimasi dari persamaan model **ARIMA(2,1,3)** merupakan residual yang sudah bersifat white noise. Artinya residual tidak berdistribusi normal dan terdapat kondisi heterokedastisitas. Ketidaknormalan residual ini dapat mengindikasikan adanya proses ARCH – GARCH, akan tetapi syarat ini tidak cukup untuk memastikan adanya unsur ARCH – GARCH. Sehingga diperlukan adanya uji lain yakni uji Lagrange Multiplier yang akan dilakukan pada tahap berikutnya.
+
+## Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(Res.Close213, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 2.2e-16 yang berarti < alpha (0,05). Hal tersebut berarti menolak Ho (tidak ada efek arch) yang menandakan terdapat ada efek arch pada ARIMA (2,1,3).
+
+# ARIMA (2,1,13)
+## Plot Residual
+```{r}
+Close.UNVRJK2113 = arima(diff1.log.AP, order = c(2,1,13))
+Res.Close2113 = residuals(Close.UNVRJK2113)
+plot(Res.Close2113, ylab = "Residual", type = "o")
+abline(h=0, col = "red")
+```
+
+Pada output di atas terlihat plot residual yang mempermudah kita untuk melihat residual yang tidak wajar. Berdasarkan plot di atas terlihat bahwa tidak terdapat tren pada residual.
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(Res.Close2113)
+qqline(Res.Close2113)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(Res.Close2113, "pnorm", mean=mean(Res.Close2113), sd=sd(Res.Close2113))
+```
+
+Karena nilai p-value (5.984e-14) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. 
+
+```{r}
+kurtosis(Res.Close2113)
+```
+
+Nilai kurtosis residual (Res.Close) yang kamu dapatkan adalah 10.12094, yang jauh lebih besar dari 3. Ini berarti distribusi residualnya leptokurtic (lebih runcing dari distribusi normal), yang menunjukkan bahwa data memiliki lebih banyak outlier dibanding distribusi normal.
+
+```{r}
+skewness(Res.Close2113)  # Jika jauh dari 0, kemungkinan butuh sstd
+```
+
+## ACF Residual
+Untuk memerika asumsi kebebasan derau (noise), kita bisa memeriksa fungsi autokorelasi sampel residual.
+```{r}
+acf(Res.Close2113)
+```
+
+Berdasarkan plot fungsi autokorelasi sampel terlihat bahwa tidak ada yang melewati batas garis putus-putus. 
+
+## Menghitung nilai Ljung-Box
+```{r}
+ljung_box2113 <- Box.test(Res.Close2113, lag = 25, type = "Ljung-Box")
+ljung_box2113
+```
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.9997) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+## LJung-Box Statistik
+```{r}
+tsdiag(Close.UNVRJK2113, gof.lag =25)
+```
+
+Berdasarkan plot Ljung-Box terlihat bahwa tidak ada p-value yang berada di bawah garis putus-putus (nilai 0.05). 
+
+## Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(Res.Close2113, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 2.2e-16 yang berarti < alpha (0,05). Hal tersebut berarti menolak Ho (tidak ada efek arch) yang menandakan terdapat ada efek arch pada ARIMA (2,1,13)
+
+# ARIMA (5,1,13)
+## Plot Residual
+```{r}
+Close.UNVRJK5113 = arima(diff1.log.AP, order = c(5,1,13))
+Res.Close5113 = residuals(Close.UNVRJK5113)
+plot(Res.Close5113, ylab = "Residual", type = "o")
+abline(h=0, col = "red")
+```
+
+Pada output di atas terlihat plot residual yang mempermudah kita untuk melihat residual yang tidak wajar. Berdasarkan plot di atas terlihat bahwa tidak terdapat tren pada residual.
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(Res.Close5113)
+qqline(Res.Close5113)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(Res.Close5113, "pnorm", mean=mean(Res.Close5113), sd=sd(Res.Close5113))
+```
+
+Karena nilai p-value (2.334e-13) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. 
+
+```{r}
+kurtosis(Res.Close5113)
+```
+
+Nilai kurtosis residual (Res.Close) yang kamu dapatkan adalah 9.925892, yang jauh lebih besar dari 3. Ini berarti distribusi residualnya leptokurtic (lebih runcing dari distribusi normal), yang menunjukkan bahwa data memiliki lebih banyak outlier dibanding distribusi normal.
+
+```{r}
+skewness(Res.Close5113)  # Jika jauh dari 0, kemungkinan butuh sstd
+```
+
+## ACF Residual
+Untuk memerika asumsi kebebasan derau (noise), kita bisa memeriksa fungsi autokorelasi sampel residual.
+```{r}
+acf(Res.Close5113)
+```
+
+Berdasarkan plot fungsi autokorelasi sampel terlihat bahwa tidak ada yang melewati batas garis putus-putus.
+
+## Menghitung nilai Ljung-Box
+```{r}
+ljung_box5113 <- Box.test(Res.Close5113, lag = 25, type = "Ljung-Box")
+ljung_box5113
+```
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.9987) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+## LJung-Box Statistik
+```{r}
+tsdiag(Close.UNVRJK5113, gof.lag =25)
+```
+
+Berdasarkan plot Ljung-Box terlihat bahwa tidak ada p-value yang berada di bawah garis putus-putus (nilai 0.05). 
+
+# Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(Res.Close5113, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 2.2e-16 yang berarti < alpha (0,05). Hal tersebut berarti menolak Ho (tidak ada efek arch) yang menandakan terdapat ada efek arch pada ARIMA (5,1,13)
+
+# Kesimpulan
+*Model ARIMA(2,1,3)* dipilih karena residualnya bersifat white noise, tidak mengandung autokorelasi berdasarkan uji Ljung-Box, tidak berdistribusi normal, dan terdapat indikasi efek ARCH. Selanjutnya, diperlukan analisis ARCH-GARCH untuk menangani heteroskedastisitas pada residual.
