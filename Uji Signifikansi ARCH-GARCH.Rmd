@@ -1,0 +1,2240 @@
+---
+title: "Uji Signifikansi ARCH-GARCH"
+author: "Sausan"
+date: "2025-04-20"
+output: html_document
+---
+
+# Import Library Yang Dibutuhkan
+```{r}
+library("visdat")
+library(ggplot2)
+library(astsa)
+library(tseries)
+library(forecast)
+library(TSA)
+library(TSA)
+library(quantmod)
+library(rugarch)
+library(MLmetrics)
+library(FinTS)
+library(moments)
+library(dplyr)
+```
+
+# Import Dataset
+```{r}
+UNVRJK <- read.csv("C:/Users/LENOVO/Documents/SMT 7/PENULISAN PROPOSAL/UNVR.JK 2014-2025.csv")
+head(UNVRJK)
+```
+
+```{r}
+tail(UNVRJK)
+```
+
+# EDA
+```{r}
+#Melihat dimensi data
+dim(UNVRJK)
+
+#Melihat struktur dataset
+str(UNVRJK)
+
+#Mengecek missing value data
+sapply(UNVRJK, function (x) sum(is.na(x)))
+
+#visualisasi missing value
+vis_miss(UNVRJK)
+```
+
+# EDA
+```{r}
+#Analisis Deskriptif
+summary(UNVRJK)
+```
+
+# Plot Agregasi
+# Boxplot untuk melihat outlier
+```{r}
+boxplot(UNVRJK$Close, 
+        main = "Boxplot Variabel Close dalam Dataset UNVRJK",
+        xlab = "Close", ylab = "Nilai Close")
+```
+
+Berdasarkan output boxplot di atas terlihat bahwa tidak terdapat outlier
+
+# Feature Selection
+```{r}
+#Ambil Data
+Close <- ts(UNVRJK[,5])
+head(Close)
+```
+
+```{r}
+UNVRJK$Date <- as.Date(UNVRJK$Date) 
+ggplot(UNVRJK, aes(x = Date, y = Close)) +
+  geom_line() +
+  labs(title = "Plot Time Series UNVRJK", x = "Tahun", y = "Close Price") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))  # Menengahkan judul
+```
+
+# Kesimpulan Plot Time Series
+Dari gambar di atas dapat diketahui bahwa perkembangan harga saham dalam 10 tahun terakhir cukup fluktuatif. Maksud fluktuatif mengindikasikan adanya variasi/perubahan yang signifikan dalam harga saham dari waktu ke waktu. Sehingga dapat disimpulkan bahwa harga saham telah mengalami perubahan yang signifikan selama periode 10 tahun terakhir tanpa memberikan detail spesifik tentang arah/pola fluktuasi tersebut.
+
+# Uji Stationeritas
+## Cek Stationeritas Terhadap Ragam
+```{r}
+bc = BoxCox.lambda(Close)
+bc
+```
+
+Pada output diatas terlihat hasil nilai λ menunjukkan angka 0.595005 (Jauh dari 1). Jadi dapat disimpulkan bahwa data tersebut tidak stasioner secara ragam.
+
+## Cek Stasioneritas Terhadap Rata-Rata/Rataan
+```{r}
+adf.test(Close)
+```
+
+Pada output diatas terlihat pada uji ADF diperoleh p-values lebih besar dari nilai α (0.6225>0,05) sehingga H0 diterima yang berarti data tidak stationer secara rataan
+
+## Plot ACF dan PACF
+```{r}
+acf2(Close)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data Close. Pada plot di atas terlihat bahwa data belum stasioner karena setiap lagnya keluar dari selang interval.
+
+## Melakukan differencing 1 terhadap data
+```{r}
+diff1.Close = diff(Close)
+plot.ts(diff1.Close)
+```
+
+Pada output diatas terlihat plot pada differencing 1 berdasarkan data Close. Pada plot di atas terlihat bahwa data masih belum stasioner karena masih terlihat fluktuatif. Data mengalami lonjakan naik turun yang cukup besar.
+
+## Plot ACF dan PACF differencing 1 kali
+```{r}
+acf2(diff1.Close)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data differencing 1 kali.
+
+## Melakukan differencing 2 terhadap data
+```{r}
+diff2.Close = diff(diff1.Close)
+plot(diff2.Close)
+```
+
+Pada output diatas terlihat plot pada differencing 2 berdasarkan data differencing 1. Pada plot di atas terlihat bahwa data belum stasioner karena masih terlihat fluktuatif. Data mengalami lonjakan naik turun yang cukup besar.
+
+## Plot ACF dan PACF differencing 2
+```{r}
+acf2(diff2.Close)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data differencing 2 kali.
+
+## Melihat plot dalam bentuk matriks
+```{r}
+par(mfrow=c(3,1))
+plot.ts(Close)
+plot.ts(diff1.Close, col = "blue")
+plot.ts(diff2.Close, col = "red")
+```
+
+Pada output diatas terlihat plot close pada data awal, differencing 1 kali, dan differencing 2 kali. Pada plot differencing 1 itu sudah lurus pada sumbu X namun ada beberapa lonjakan. Pada differencing 2 juga terdapat lonjakan.
+
+## Transformasi
+```{r}
+AP=Close
+log.AP = log(AP)
+par(mfrow = c(2,1))
+plot.ts(AP)
+plot.ts(log.AP, col = 'blue')
+```
+
+Pada output diatas terlihat plot yang sudah di transformasi. Pada plot data tersebut menunjukkan tren naik dan tren turun.
+
+## Melakukan differencing pada log AP
+```{r}
+par(mfrow = c(3,1))
+plot(log.AP)
+diff1.log.AP = diff(log.AP)
+plot.ts(diff1.log.AP)
+diff2.log.AP = diff(diff1.log.AP)
+plot.ts(diff2.log.AP)
+```
+
+Pada output diatas terlihat plot close pada data awal, transformasi logaritma differencing 1 kali, transformasi logartima differencing 2 kali. Pada plot differencing 1 itu lonjakannya kecil berarti data sudah stasioner secara rata2, namun di akhir ada lonjakan besar berarti data tidak stasioner secara ragam. Pada differencing 2 lonjakannya kecil, lalu ada lonjakan besar berarti data tidak stasioner secara ragam. 
+
+## Plot ACF dan PACF dengan transformasi logaritma
+```{r}
+acf2(log.AP)
+```
+
+Pada output diatas terlihat plot ACF dan PACF berdasarkan data dengan transformasi logaritma. Pada plot di atas terlihat bahwa data belum stasioner karena setiap lagnya keluar dari selang interval.
+
+## Plot ACF dan PACF kombinasi transformasi logartima dengan differencing 1
+```{r}
+acf2(diff1.log.AP)
+```
+
+## Plot ACF dan PACF kombinasi transformasi logartima dengan differencing 2
+```{r}
+acf2(diff2.log.AP)
+```
+
+# Kesimpulan
+Jadi, dapat disimpulkan data kombinasi transformasi logartima dengan differencing 1 sudah stabil. Jadi data yang akan digunakan adalah data kombinasi transformasi logartima dengan differencing 1.
+
+## Cek Stationeritas Terhadap Ragam
+```{r}
+bc1 = BoxCox.lambda(diff1.log.AP)
+bc1
+```
+
+Pada output diatas terlihat hasil nilai λ menunjukkan angka 1. Jadi dapat disimpulkan bahwa data tersebut sudah stasioner secara ragam.
+
+## Cek Stasioneritas Terhadap Rata-Rata/Rataan
+```{r}
+adf.test(diff1.log.AP)
+```
+
+Pada output diatas terlihat pada uji ADF diperoleh p-values lebih besar dari nilai α (0,01<0,05) sehingga H0 ditolak yang berarti data stationer secara varians. 
+
+# Kandidat Model ARIMA (2,1,3)
+```{r}
+Close.ARIMA.2.1.3 = arima(diff1.log.AP, order = c(2,1,3))
+Close.ARIMA.2.1.3
+```
+
+# Uji Diagnostik Model ARIMA (2,1,3) Yang Sudah Didapatkan
+## Plot Residual
+```{r}
+Close.UNVRJK213 = arima(diff1.log.AP, order = c(2,1,3))
+Res.Close213 = residuals(Close.UNVRJK213)
+plot(Res.Close213, ylab = "Residual", type = "o")
+abline(h=0, col = "red")
+```
+
+Pada output di atas terlihat plot residual yang mempermudah kita untuk melihat residual yang tidak wajar. Berdasarkan plot di atas terlihat bahwa tidak terdapat tren pada residual.
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(Res.Close213)
+qqline(Res.Close213)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(Res.Close213, "pnorm", mean=mean(Res.Close213), sd=sd(Res.Close213))
+```
+
+Karena nilai p-value (9.104e-15) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. 
+
+```{r}
+kurtosis(Res.Close213)
+```
+
+Nilai kurtosis residual (Res.Close) yang kamu dapatkan adalah 10.35838, yang jauh lebih besar dari 3. Ini berarti distribusi residualnya leptokurtic (lebih runcing dari distribusi normal), yang menunjukkan bahwa data memiliki lebih banyak outlier dibanding distribusi normal.
+
+```{r}
+skewness(Res.Close213)  # Jika jauh dari 0, kemungkinan butuh sstd
+```
+
+## ACF Residual
+Untuk memerika asumsi kebebasan derau (noise), kita bisa memeriksa fungsi autokorelasi sampel residual.
+```{r}
+acf(Res.Close213)
+```
+
+Berdasarkan plot fungsi autokorelasi sampel terlihat bahwa ada yang melewati batas garis putus-putus. Dengan demikian, dapat dikatakan bahwa terdapat autokorelasi pada residual. 
+
+## Menghitung nilai Ljung-Box
+```{r}
+ljung_box213 <- Box.test(Res.Close213, lag = 25, type = "Ljung-Box")
+ljung_box213
+```
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.4173) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+## LJung-Box Statistik
+```{r}
+tsdiag(Close.UNVRJK213, gof.lag =25)
+```
+
+Berdasarkan plot Ljung-Box terlihat bahwa ada p-value yang berada di bawah garis putus-putus (nilai 0.05). 
+
+Jadi, residual yang diestimasi dari persamaan model **ARIMA(2,1,3)** merupakan residual yang sudah bersifat white noise. Artinya residual tidak berdistribusi normal dan terdapat kondisi heterokedastisitas. Ketidaknormalan residual ini dapat mengindikasikan adanya proses ARCH – GARCH, akan tetapi syarat ini tidak cukup untuk memastikan adanya unsur ARCH – GARCH. Sehingga diperlukan adanya uji lain yakni uji Lagrange Multiplier yang akan dilakukan pada tahap berikutnya.
+
+## Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(Res.Close213, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 2.2e-16 yang berarti < alpha (0,05). Hal tersebut berarti menolak Ho (tidak ada efek arch) yang menandakan terdapat ada efek arch pada ARIMA (2,1,3)
+
+# Model ARCH GARCH
+```{r}
+# Hitung log return dari data Close
+log_returns <- diff(log(Close))  # Menghitung log return
+log_returns <- na.omit(log_returns)  # Menghapus NA yang dihasilkan oleh diff()
+```
+
+# Split Data
+```{R}
+# Bagi data menjadi training dan testing (80:20)
+train_size <- round(0.8 * length(log_returns))
+train_data <- log_returns[1:train_size]
+test_data <- log_returns[(train_size + 1):length(log_returns)]
+```
+
+# Modelling ARCH-GARCH
+## Model ARCH-GARCH Dengan Distribusi Normal, std, dan sstd. P=1 dan rentang Q=0-5
+```{r}
+# Model GARCH
+spec01 <- ugarchspec(
+  variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+  mean.model = list(armaOrder = c(2, 3), include.mean = TRUE),
+  distribution.model = "std"
+)
+garch_fit01 <- ugarchfit(spec = spec01, data = train_data)
+garch_fit01
+```
+
+```{r}
+spec02 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(1, 2)), 
+                      distribution.model = "std")
+
+garch_fit02 <- ugarchfit(spec = spec02, data = train_data)
+garch_fit02
+```
+
+```{r}
+spec03 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(1, 3)), 
+                      distribution.model = "std")
+
+garch_fit03 <- ugarchfit(spec = spec03, data = train_data)
+garch_fit03
+```
+
+```{r}
+spec04 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(1, 4)), 
+                      distribution.model = "std")
+
+garch_fit04 <- ugarchfit(spec = spec04, data = train_data)
+garch_fit04
+```
+
+```{r}
+spec05 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(1, 5)), 
+                      distribution.model = "std")
+
+garch_fit05 <- ugarchfit(spec = spec05, data = train_data)
+garch_fit05
+```
+
+```{r}
+spec1 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(1, 1)), 
+                     distribution.model = "norm")
+
+garch_fit1 <- ugarchfit(spec = spec1, data = train_data)
+garch_fit1
+```
+
+```{r}
+spec2 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(1, 2)), 
+                     distribution.model = "norm")
+
+garch_fit2 <- ugarchfit(spec = spec2, data = train_data)
+garch_fit2
+```
+
+```{r}
+spec3 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(1, 3)), 
+                     distribution.model = "norm")
+
+garch_fit3 <- ugarchfit(spec = spec3, data = train_data)
+garch_fit3
+```
+
+```{r}
+spec4 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(1, 4)), 
+                     distribution.model = "norm")
+
+garch_fit4 <- ugarchfit(spec = spec4, data = train_data)
+garch_fit4
+```
+
+```{R}
+spec5 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(1, 5)), 
+                     distribution.model = "norm")
+
+garch_fit5 <- ugarchfit(spec = spec5, data = train_data)
+garch_fit5
+```
+
+```{r}
+spec6 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(1, 1)), 
+                     distribution.model = "sstd")
+
+garch_fit6 <- ugarchfit(spec = spec6, data = train_data)
+garch_fit6
+```
+
+```{r}
+spec7 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(1, 2)), 
+                     distribution.model = "sstd")
+
+garch_fit7 <- ugarchfit(spec = spec7, data = train_data)
+garch_fit7
+```
+
+```{r}
+spec8 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(1, 3)), 
+                     distribution.model = "sstd")
+
+garch_fit8 <- ugarchfit(spec = spec8, data = train_data)
+garch_fit8
+```
+
+```{r}
+spec9 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(1, 4)), 
+                     distribution.model = "sstd")
+
+garch_fit9 <- ugarchfit(spec = spec9, data = train_data)
+garch_fit9
+```
+
+```{r}
+spec10 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(1, 5)), 
+                      distribution.model = "sstd")
+
+garch_fit10 <- ugarchfit(spec = spec10, data = train_data)
+garch_fit10
+```
+
+```{r}
+spec000 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                       variance.model = list(model = "gjrGARCH", garchOrder = c(1, 0)), 
+                       distribution.model = "sstd")
+
+garch_fit000 <- ugarchfit(spec = spec000, data = train_data)
+garch_fit000
+```
+
+```{r}
+spec11 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(1, 1)), 
+                      distribution.model = "sstd")
+
+garch_fit11 <- ugarchfit(spec = spec11, data = train_data)
+garch_fit11
+```
+
+```{r}
+spec12 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(1, 2)), 
+                      distribution.model = "sstd")
+
+garch_fit12 <- ugarchfit(spec = spec12, data = train_data)
+garch_fit12
+```
+
+```{r}
+spec13 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(1, 3)), 
+                      distribution.model = "sstd")
+
+garch_fit13 <- ugarchfit(spec = spec13, data = train_data)
+garch_fit13
+```
+
+```{r}
+spec14 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(1, 4)), 
+                      distribution.model = "sstd")
+
+garch_fit14 <- ugarchfit(spec = spec14, data = train_data)
+garch_fit14
+```
+
+```{r}
+spec15 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(1, 5)), 
+                      distribution.model = "sstd")
+
+garch_fit15 <- ugarchfit(spec = spec15, data = train_data)
+garch_fit15
+```
+
+# Perbandingan Model ARCH-GARCH Dengan Distribusi Normal, std, dan sstd. P=1 dan rentang Q=0-5
+```{r}
+# Membuat daftar model yang ingin dibandingkan
+models <- list(
+  garch_fit01, garch_fit02, garch_fit03, garch_fit04, garch_fit05,
+  garch_fit1, garch_fit2, garch_fit4, garch_fit5,
+  garch_fit6, garch_fit7, garch_fit8, garch_fit9, garch_fit10,
+  garch_fit11, garch_fit12, garch_fit13, garch_fit14, garch_fit15
+)
+
+# Nama model untuk identifikasi
+model_names <- c(
+ "sGARCH(1,1)-std", "sGARCH(1,2)-std", "sGARCH(1,3)-std","sGARCH(1,4)-std", "sGARCH(1,5)-std",
+ "sGARCH(1,1)-norm", "sGARCH(1,2)-norm", "sGARCH(1,4)-norm", "sGARCH(1,5)-norm", 
+ "sGARCH(1,1)-sstd", "sGARCH(1,2)-sstd", "sGARCH(1,3)-sstd", "sGARCH(1,4)-sstd", "sGARCH(1,5)-sstd",
+"gjrGARCH(1,1)-sstd", "gjrGARCH(1,2)-sstd", "gjrGARCH(1,3)-sstd", "gjrGARCH(1,4)-sstd", "gjrGARCH(1,5)-sstd"
+)
+
+# Pastikan panjang model_names dan models sama
+if (length(models) != length(model_names)) {
+  stop("Jumlah model dan nama model tidak sama!")
+}
+
+# Menghitung AIC dengan penanganan error
+aic_values <- sapply(models, function(x) tryCatch(infocriteria(x)[[1]], error = function(e) NA))
+
+# Membuat data frame dengan format yang benar
+model_comparison <- data.frame(
+  Model = model_names,
+  AIC = aic_values,
+  stringsAsFactors = FALSE
+)
+
+# Menampilkan tabel perbandingan
+print(model_comparison)
+```
+
+# Mencari model dengan AIC terendah
+AIC (Akaike Information Criterion) → semakin rendah, semakin baik
+```{R}
+best_model_index <- which.min(aic_values)  # Mencari indeks AIC terkecil
+best_model <- model_comparison[best_model_index, ]  # Mengambil model terbaik
+
+cat("\nModel dengan AIC terendah:\n")
+cat("Nama Model: ", best_model$Model, "\n")
+cat("AIC: ", best_model$AIC, "\n")
+```
+
+## Analisis Model Terbaik
+gjrGARCH(1,3)-sstd dengan AIC: -5.478636
+
+# gjrGARCH(1,3)-sstd
+## Periksa Residual Standardized
+```{r}
+# Ambil residual yang distandarisasi
+std_resid13<- residuals(garch_fit13, standardize = TRUE)
+
+# Plot residual standardize
+plot(std_resid13, type = "l", main = "Standardized Residuals", col = "blue")
+
+# Plot ACF dan PACF dari residual kuadrat
+acf(std_resid13^2, main = "ACF of Squared Standardized Residuals")
+pacf(std_resid13^2, main = "PACF of Squared Standardized Residuals")
+```
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(std_resid13)
+qqline(std_resid13)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(std_resid13, "pnorm", mean=mean(std_resid13), sd=sd(std_resid13))
+```
+
+Karena nilai p-value (2.2e-16) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. Namun, KS test tidak harus normal setelah ARCH-GARCH, karena tujuan utama model ini bukan membuat residual normal, melainkan menangkap pola volatilitas yang berubah-ubah.
+
+## Menghitung nilai Ljung-Box
+Box-Ljung test digunakan untuk menguji apakah residual dari model masih memiliki autokorelasi.
+```{r}
+ljung_box13 <- Box.test(std_resid13, lag = 25, type = "Ljung-Box")
+ljung_box13
+```
+
+Hipotesis Nol (H₀): Tidak ada autokorelasi dalam residual (residual bersifat acak).
+Hipotesis Alternatif (H₁): Ada autokorelasi dalam residual (residual masih memiliki pola).
+
+p-value = 0.3756 > 0.05
+
+Tidak cukup bukti untuk menolak H0 (menerima H0), sehingga residual dianggap tidak memiliki autokorelasi secara signifikan.
+Ini berarti model sudah menangkap pola volatilitas dengan cukup baik, dan tidak ada pola tersisa dalam residual.
+X-squared = 26.611 lebih besar dari df (25)
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.3756) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+Ini menunjukkan bahwa nilai statistik uji tidak terlalu besar, yang mendukung kesimpulan bahwa residual sudah cukup acak.
+
+# Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(std_resid13, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 0.7538 yang berarti > alpha (0,05). Hal tersebut berarti menerima Ho (tidak ada efek arch) yang menandakan terdapat tidak ada efek arch pada model gjrGARCH(1,3)-sstd.
+
+# Kesimpulan
+Model yang digunakan sudah cukup baik karena residualnya tidak menunjukkan pola autokorelasi yang signifikan.
+Model GARCH yang digunakan bisa dianggap valid, karena volatilitasnya sudah cukup terprediksi dengan baik.
+
+# Peramalan
+```{r}
+# Prediksi dengan model
+forecast13 <- ugarchforecast(garch_fit13, n.ahead = length(test_data))
+
+# Ambil nilai prediksi log return
+predicted_values13 <- as.numeric(fitted(forecast13))  
+```
+
+```{r}
+# Perbaikan transformasi kembali ke harga asli 
+P0_test <- Close[train_size + 1]  # Ambil harga awal dari test set
+
+# Transformasi kembali log return ke harga asli
+harga_aktual <- P0_test * exp(cumsum(test_data))  # Harga aktual dari test set
+harga_prediksi <- P0_test * exp(cumsum(predicted_values13))  # Harga prediksi dari model
+
+# Pastikan panjangnya sama sebelum membuat data frame
+if (length(harga_prediksi) == length(harga_aktual)) {
+  comparison_harga <- data.frame("Aktual" = harga_aktual, "Prediksi" = harga_prediksi)
+  print(comparison_harga)
+  
+  # Hitung MAPE
+  mape_harga <- mean(abs((harga_prediksi - harga_aktual) / harga_aktual))
+  mape_harga_percent <- mape_harga * 100
+  print(paste("MAPE (Harga Asli): ", mape_harga_percent, "%"))
+} else {
+  print("Error: Panjang harga_prediksi dan harga_aktual tidak sama!")
+}
+```
+
+# Pakai Nilai SMPAPE
+```{r}
+smape_harga <- mean(2 * abs(harga_prediksi - harga_aktual) / (abs(harga_aktual) + abs(harga_prediksi))) * 100
+print(paste("SMAPE (Harga Asli): ", smape_harga, "%"))
+```
+
+## Model ARCH-GARCH Dengan Distribusi Normal, std, dan sstd. P=2 dan rentang Q=0-5
+```{r}
+spec20 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 0)), 
+                      distribution.model = "std")
+
+garch_fit20 <- ugarchfit(spec = spec20, data = train_data)
+garch_fit20
+```
+
+```{r}
+spec21 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 1)), 
+                      distribution.model = "std")
+
+garch_fit21 <- ugarchfit(spec = spec21, data = train_data)
+garch_fit21
+```
+
+```{r}
+spec22 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 2)), 
+                      distribution.model = "std")
+
+garch_fit22 <- ugarchfit(spec = spec22, data = train_data)
+garch_fit22
+```
+
+```{r}
+spec23 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 3)), 
+                      distribution.model = "std")
+
+garch_fit23 <- ugarchfit(spec = spec23, data = train_data)
+garch_fit23
+```
+
+```{r}
+spec24 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 4)), 
+                      distribution.model = "std")
+
+garch_fit24 <- ugarchfit(spec = spec24, data = train_data)
+garch_fit24
+```
+
+```{r}
+spec25 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 5)), 
+                      distribution.model = "std")
+
+garch_fit25 <- ugarchfit(spec = spec25, data = train_data)
+garch_fit25
+```
+
+```{r}
+spec26 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 0)), 
+                      distribution.model = "norm")
+
+garch_fit26 <- ugarchfit(spec = spec26, data = train_data)
+garch_fit26
+```
+
+```{r}
+spec27 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 1)), 
+                      distribution.model = "norm")
+
+garch_fit27 <- ugarchfit(spec = spec27, data = train_data)
+garch_fit27
+```
+
+```{r}
+spec28 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 2)), 
+                      distribution.model = "norm")
+
+garch_fit28 <- ugarchfit(spec = spec28, data = train_data)
+garch_fit28
+```
+
+```{r}
+spec29 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 3)), 
+                      distribution.model = "norm")
+
+garch_fit29 <- ugarchfit(spec = spec29, data = train_data)
+garch_fit29
+```
+
+```{r}
+spec30 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 4)), 
+                      distribution.model = "norm")
+
+garch_fit30 <- ugarchfit(spec = spec30, data = train_data)
+garch_fit30
+```
+
+```{r}
+spec31 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 5)), 
+                      distribution.model = "norm")
+
+garch_fit31 <- ugarchfit(spec = spec31, data = train_data)
+garch_fit31
+```
+
+```{r}
+spec32 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 0)), 
+                      distribution.model = "sstd")
+
+garch_fit32 <- ugarchfit(spec = spec32, data = train_data)
+garch_fit32
+```
+
+```{r}
+spec33 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 1)), 
+                      distribution.model = "sstd")
+
+garch_fit33 <- ugarchfit(spec = spec33, data = train_data)
+garch_fit33
+```
+
+```{r}
+spec34 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 2)), 
+                      distribution.model = "sstd")
+
+garch_fit34 <- ugarchfit(spec = spec34, data = train_data)
+garch_fit34
+```
+
+```{r}
+spec35 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 3)), 
+                      distribution.model = "sstd")
+
+garch_fit35 <- ugarchfit(spec = spec35, data = train_data)
+garch_fit35
+```
+
+```{r}
+spec36 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 4)), 
+                      distribution.model = "sstd")
+
+garch_fit36 <- ugarchfit(spec = spec36, data = train_data)
+garch_fit36
+```
+
+```{r}
+spec37 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "sGARCH", garchOrder = c(2, 5)), 
+                      distribution.model = "sstd")
+
+garch_fit37 <- ugarchfit(spec = spec37, data = train_data)
+garch_fit37
+```
+
+```{r}
+spec38 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(2, 0)), 
+                      distribution.model = "sstd")
+
+garch_fit38 <- ugarchfit(spec = spec38, data = train_data)
+garch_fit38
+```
+
+```{r}
+spec39 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(2, 1)), 
+                      distribution.model = "sstd")
+
+garch_fit39 <- ugarchfit(spec = spec39, data = train_data)
+garch_fit39
+```
+
+```{r}
+spec40 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(2, 2)), 
+                      distribution.model = "sstd")
+
+garch_fit40 <- ugarchfit(spec = spec40, data = train_data)
+garch_fit40
+```
+
+```{r}
+spec41 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(2, 3)), 
+                      distribution.model = "sstd")
+
+garch_fit41 <- ugarchfit(spec = spec41, data = train_data)
+garch_fit41
+```
+
+```{r}
+spec42 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(2, 4)), 
+                      distribution.model = "sstd")
+
+garch_fit42 <- ugarchfit(spec = spec42, data = train_data)
+garch_fit42
+```
+
+```{r}
+spec43 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                      variance.model = list(model = "gjrGARCH", garchOrder = c(2, 5)), 
+                      distribution.model = "sstd")
+
+garch_fit43 <- ugarchfit(spec = spec43, data = train_data)
+garch_fit43
+```
+
+# Perbandingan Model ARCH-GARCH Dengan Distribusi Normal, std, dan sstd. P=2 dan rentang Q=0-5
+```{r}
+# Membuat daftar model yang ingin dibandingkan
+models2 <- list(
+  garch_fit21, garch_fit22, garch_fit23, garch_fit24, garch_fit25,
+  garch_fit26, garch_fit27, garch_fit28, garch_fit29, garch_fit30, garch_fit31,
+  garch_fit32, garch_fit33, garch_fit34, garch_fit35, garch_fit36, garch_fit37,
+  garch_fit38, garch_fit39, garch_fit40, garch_fit41, garch_fit42, garch_fit43
+)
+
+# Nama model untuk identifikasi
+model_names2 <- c(
+ "sGARCH(2,1)-std", "sGARCH(2,2)-std", "sGARCH(2,3)-std","sGARCH(2,4)-std", "sGARCH(2,5)-std",
+ "sGARCH(2,0)-norm", "sGARCH(2,1)-norm", "sGARCH(2,2)-norm", "sGARCH(2,3)-norm", "sGARCH(2,4)-norm", "sGARCH(2,5)-norm", 
+ "sGARCH(2,0)-sstd", "sGARCH(2,1)-sstd", "sGARCH(2,2)-sstd", "sGARCH(2,3)-sstd", "sGARCH(2,4)-sstd", "sGARCH(2,5)-sstd",
+"gjrGARCH(2,0)-sstd", "gjrGARCH(2,1)-sstd", "gjrGARCH(2,2)-sstd", "gjrGARCH(2,3)-sstd", "gjrGARCH(2,4)-sstd", "gjrGARCH(2,5)-sstd"
+)
+
+# Pastikan panjang model_names dan models sama
+if (length(models2) != length(model_names2)) {
+  stop("Jumlah model dan nama model tidak sama!")
+}
+
+# Menghitung AIC dengan penanganan error
+aic_values2 <- sapply(models2, function(x) tryCatch(infocriteria(x)[[1]], error = function(e) NA))
+
+# Membuat data frame dengan format yang benar
+model_comparison2 <- data.frame(
+  Model = model_names2,
+  AIC = aic_values2,
+  stringsAsFactors = FALSE
+)
+
+# Menampilkan tabel perbandingan
+print(model_comparison2)
+```
+
+# Mencari model dengan AIC terendah
+AIC (Akaike Information Criterion) → semakin rendah, semakin baik
+```{R}
+best_model_index2 <- which.min(aic_values2)  # Mencari indeks AIC terkecil
+best_model2 <- model_comparison2[best_model_index2, ]  # Mengambil model terbaik
+
+cat("\nModel dengan AIC terendah:\n")
+cat("Nama Model: ", best_model2$Model, "\n")
+cat("AIC: ", best_model2$AIC, "\n")
+```
+
+## Analisis Model Terbaik
+gjrGARCH(2,1)-sstd  dengan AIC: -5.479345 
+
+# gjrGARCH(2,1)-sstd
+# Periksa Residual Standardized
+```{r}
+# Ambil residual yang distandarisasi
+std_resid39 <- residuals(garch_fit39, standardize = TRUE)
+
+# Plot residual standardize
+plot(std_resid39, type = "l", main = "Standardized Residuals", col = "blue")
+
+# Plot ACF dan PACF dari residual kuadrat
+acf(std_resid39^2, main = "ACF of Squared Standardized Residuals")
+pacf(std_resid39^2, main = "PACF of Squared Standardized Residuals")
+```
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(std_resid39)
+qqline(std_resid39)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(std_resid39, "pnorm", mean=mean(std_resid39), sd=sd(std_resid39))
+```
+
+Karena nilai p-value (2.2e-16) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. Namun, KS test tidak harus normal setelah ARCH-GARCH, karena tujuan utama model ini bukan membuat residual normal, melainkan menangkap pola volatilitas yang berubah-ubah.
+
+## Menghitung nilai Ljung-Box
+Box-Ljung test digunakan untuk menguji apakah residual dari model masih memiliki autokorelasi.
+```{r}
+ljung_box39 <- Box.test(std_resid39, lag = 25, type = "Ljung-Box")
+ljung_box39
+```
+
+Hipotesis Nol (H₀): Tidak ada autokorelasi dalam residual (residual bersifat acak).
+Hipotesis Alternatif (H₁): Ada autokorelasi dalam residual (residual masih memiliki pola).
+
+p-value = 0.393 > 0.05
+
+Tidak cukup bukti untuk menolak H₀, sehingga residual dianggap tidak memiliki autokorelasi secara signifikan.
+Ini berarti model sudah menangkap pola volatilitas dengan cukup baik, dan tidak ada pola tersisa dalam residual.
+X-squared = 26.275 lebih besar dari df (25)
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.393) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+Ini menunjukkan bahwa nilai statistik uji tidak terlalu besar, yang mendukung kesimpulan bahwa residual sudah cukup acak.
+
+
+# Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(std_resid39, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 0.9628
+yang berarti > alpha (0,05). Hal tersebut berarti menerima Ho (tidak ada efek arch) yang menandakan terdapat tidak ada efek arch pada model gjrGARCH(2,1)-sstd.
+
+# Kesimpulan
+Model yang digunakan sudah cukup baik karena residualnya tidak menunjukkan pola autokorelasi yang signifikan.
+Model GARCH yang digunakan bisa dianggap valid, karena volatilitasnya sudah cukup terprediksi dengan baik.
+
+
+# Peramalan
+```{r}
+# Prediksi dengan model
+forecast39 <- ugarchforecast(garch_fit39, n.ahead = length(test_data))
+
+# Ambil nilai prediksi log return
+predicted_values39 <- as.numeric(fitted(forecast39))
+```
+
+```{r}
+# Perbaikan transformasi kembali ke harga asli
+P0_test <- Close[train_size + 1]  # Ambil harga awal dari test set
+
+# Transformasi kembali log return ke harga asli
+harga_aktual <- P0_test * exp(cumsum(test_data))  # Harga aktual dari test set
+harga_prediksi39 <- P0_test * exp(cumsum(predicted_values39))  # Harga prediksi dari model
+
+# Pastikan panjangnya sama sebelum membuat data frame
+if (length(harga_prediksi39) == length(harga_aktual)) {
+  comparison_harga39 <- data.frame("Aktual" = harga_aktual, "Prediksi" = harga_prediksi39)
+  print(comparison_harga39)
+  
+  # Hitung MAPE
+  mape_harga39 <- mean(abs((harga_prediksi39 - harga_aktual) / harga_aktual))
+  mape_harga_percent39 <- mape_harga39 * 100
+  print(paste("MAPE (Harga Asli): ", mape_harga_percent39, "%"))
+} else {
+  print("Error: Panjang harga_prediksi dan harga_aktual tidak sama!")
+}
+```
+
+# Pakai Nilai SMPAPE
+```{r}
+smape_harga39 <- mean(2 * abs(harga_prediksi39 - harga_aktual) / (abs(harga_aktual) + abs(harga_prediksi39))) * 100
+print(paste("SMAPE (Harga Asli): ", smape_harga39, "%"))
+```
+
+# Model ARCH-GARCH Dengan Distribusi Normal, std, dan sstd. P=3 dan rentang Q=0-5
+```{r}
+spec44 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 0)), 
+                     distribution.model = "std")
+garch_fit44 <- ugarchfit(spec = spec44, data = train_data)
+garch_fit44
+```
+
+```{r}
+spec45 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 1)), 
+                     distribution.model = "std")
+garch_fit45 <- ugarchfit(spec = spec45, data = train_data)
+garch_fit45
+```
+
+```{r}
+spec46 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 2)), 
+                     distribution.model = "std")
+garch_fit46 <- ugarchfit(spec = spec46, data = train_data)
+garch_fit46
+```
+
+```{r}
+spec47 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 3)), 
+                     distribution.model = "std")
+garch_fit47 <- ugarchfit(spec = spec47, data = train_data)
+garch_fit47
+```
+
+```{r}
+spec48 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 4)), 
+                     distribution.model = "std")
+garch_fit48 <- ugarchfit(spec = spec48, data = train_data)
+garch_fit48
+```
+
+```{r}
+spec49 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 5)), 
+                     distribution.model = "std")
+garch_fit49 <- ugarchfit(spec = spec49, data = train_data)
+garch_fit49
+```
+
+```{r}
+spec50 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 0)), 
+                     distribution.model = "norm")
+garch_fit50 <- ugarchfit(spec = spec50, data = train_data)
+garch_fit50
+```
+
+```{r}
+spec51 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 1)), 
+                     distribution.model = "norm")
+garch_fit51 <- ugarchfit(spec = spec51, data = train_data)
+garch_fit51
+```
+
+```{r}
+spec52 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 2)), 
+                     distribution.model = "norm")
+garch_fit52 <- ugarchfit(spec = spec52, data = train_data)
+garch_fit52
+```
+
+```{r}
+spec53 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 3)), 
+                     distribution.model = "norm")
+garch_fit53 <- ugarchfit(spec = spec53, data = train_data)
+garch_fit53
+```
+
+```{r}
+spec54 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 4)), 
+                     distribution.model = "norm")
+garch_fit54 <- ugarchfit(spec = spec54, data = train_data)
+garch_fit54
+```
+
+```{r}
+spec55 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 5)), 
+                     distribution.model = "norm")
+garch_fit55 <- ugarchfit(spec = spec55, data = train_data)
+garch_fit55
+```
+
+```{r}
+spec56 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 0)), 
+                     distribution.model = "sstd")
+garch_fit56 <- ugarchfit(spec = spec56, data = train_data)
+garch_fit56
+```
+
+```{r}
+spec57 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 1)), 
+                     distribution.model = "sstd")
+garch_fit57 <- ugarchfit(spec = spec57, data = train_data)
+garch_fit57
+```
+
+```{r}
+spec58 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 2)), 
+                     distribution.model = "sstd")
+garch_fit58 <- ugarchfit(spec = spec58, data = train_data)
+garch_fit58
+```
+
+```{r}
+spec59 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 3)), 
+                     distribution.model = "sstd")
+garch_fit59 <- ugarchfit(spec = spec59, data = train_data)
+garch_fit59
+```
+
+```{r}
+spec60 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 4)), 
+                     distribution.model = "sstd")
+garch_fit60 <- ugarchfit(spec = spec60, data = train_data)
+garch_fit60
+```
+
+```{r}
+spec61 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(3, 5)), 
+                     distribution.model = "sstd")
+garch_fit61 <- ugarchfit(spec = spec61, data = train_data)
+garch_fit61
+```
+
+```{r}
+spec62 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(3, 0)), 
+                     distribution.model = "sstd")
+garch_fit62 <- ugarchfit(spec = spec62, data = train_data)
+garch_fit62
+```
+
+```{r}
+spec63 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(3, 1)), 
+                     distribution.model = "sstd")
+garch_fit63 <- ugarchfit(spec = spec63, data = train_data)
+garch_fit63
+```
+
+```{r}
+spec64 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(3, 2)), 
+                     distribution.model = "sstd")
+garch_fit64 <- ugarchfit(spec = spec64, data = train_data)
+garch_fit64
+```
+
+```{r}
+spec65 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(3, 3)), 
+                     distribution.model = "sstd")
+garch_fit65 <- ugarchfit(spec = spec65, data = train_data)
+garch_fit65
+```
+
+```{r}
+spec66 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(3, 4)), 
+                     distribution.model = "sstd")
+garch_fit66 <- ugarchfit(spec = spec66, data = train_data)
+garch_fit66
+```
+
+```{r}
+spec67 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(3, 5)), 
+                     distribution.model = "sstd")
+garch_fit67 <- ugarchfit(spec = spec67, data = train_data)
+garch_fit67
+```
+
+# Perbandingan Model ARCH-GARCH Dengan Distribusi Normal, std, dan sstd. P=3 dan rentang Q=0-5
+```{r}
+# Membuat daftar model yang ingin dibandingkan
+models3 <- list(
+  garch_fit45, garch_fit46, garch_fit47, garch_fit48, garch_fit49,
+  garch_fit51, garch_fit52, garch_fit53, garch_fit54, garch_fit55,
+  garch_fit56, garch_fit57, garch_fit58, garch_fit59,garch_fit60, garch_fit61,
+  garch_fit62, garch_fit63, garch_fit64, garch_fit65, garch_fit66, garch_fit67
+)
+
+# Nama model untuk identifikasi
+model_names3 <- c(
+ "sGARCH(3,1)-std", "sGARCH(3,2)-std", "sGARCH(3,3)-std","sGARCH(3,4)-std", "sGARCH(3,5)-std",
+ "sGARCH(3,1)-norm", "sGARCH(3,2)-norm", "sGARCH(3,3)-norm", "sGARCH(3,4)-norm", "sGARCH(3,5)-norm", 
+ "sGARCH(3,0)-sstd", "sGARCH(3,1)-sstd", "sGARCH(3,2)-sstd", "sGARCH(3,3)-sstd", "sGARCH(3,4)-sstd", "sGARCH(3,5)-sstd",
+"gjrGARCH(3,0)-sstd", "gjrGARCH(3,1)-sstd", "gjrGARCH(3,2)-sstd", "gjrGARCH(3,3)-sstd", "gjrGARCH(3,4)-sstd", "gjrGARCH(3,5)-sstd"
+)
+
+
+# Pastikan panjang model_names dan models sama
+if (length(models3) != length(model_names3)) {
+  stop("Jumlah model dan nama model tidak sama!")
+}
+
+# Menghitung AIC dengan penanganan error
+aic_values3 <- sapply(models3, function(x) tryCatch(infocriteria(x)[[1]], error = function(e) NA))
+
+# Membuat data frame dengan format yang benar
+model_comparison3 <- data.frame(
+  Model = model_names3,
+  AIC = aic_values3,
+  stringsAsFactors = FALSE
+)
+
+# Menampilkan tabel perbandingan
+print(model_comparison3)
+```
+
+# Mencari model dengan AIC terendah
+AIC (Akaike Information Criterion) → semakin rendah, semakin baik
+```{R}
+best_model_index3 <- which.min(aic_values3)  # Mencari indeks AIC terkecil
+best_model3 <- model_comparison3[best_model_index3, ]  # Mengambil model terbaik
+
+cat("\nModel dengan AIC terendah:\n")
+cat("Nama Model: ", best_model3$Model, "\n")
+cat("AIC: ", best_model3$AIC, "\n")
+```
+
+## Analisis Model Terbaik
+gjrGARCH(3,1)-sstd   dengan AIC: -5.477729
+
+# gjrGARCH(3,1)-sstd
+# Periksa Residual Standardized
+```{r}
+# Ambil residual yang distandarisasi
+std_resid63 <- residuals(garch_fit63, standardize = TRUE)
+
+# Plot residual standardize
+plot(std_resid63, type = "l", main = "Standardized Residuals", col = "blue")
+
+# Plot ACF dan PACF dari residual kuadrat
+acf(std_resid63^2, main = "ACF of Squared Standardized Residuals")
+pacf(std_resid63^2, main = "PACF of Squared Standardized Residuals")
+```
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(std_resid63)
+qqline(std_resid63)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(std_resid63, "pnorm", mean=mean(std_resid63), sd=sd(std_resid63))
+```
+
+Karena nilai p-value (2.2e-16) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. Namun, KS test tidak harus normal setelah ARCH-GARCH, karena tujuan utama model ini bukan membuat residual normal, melainkan menangkap pola volatilitas yang berubah-ubah.
+
+## Menghitung nilai Ljung-Box
+Box-Ljung test digunakan untuk menguji apakah residual dari model masih memiliki autokorelasi.
+```{r}
+ljung_box63 <- Box.test(std_resid63, lag = 25, type = "Ljung-Box")
+ljung_box63
+```
+
+Hipotesis Nol (H₀): Tidak ada autokorelasi dalam residual (residual bersifat acak).
+Hipotesis Alternatif (H₁): Ada autokorelasi dalam residual (residual masih memiliki pola).
+
+p-value =  0.3878 > 0.05
+
+Tidak cukup bukti untuk menolak H₀, sehingga residual dianggap tidak memiliki autokorelasi secara signifikan.
+Ini berarti model sudah menangkap pola volatilitas dengan cukup baik, dan tidak ada pola tersisa dalam residual.
+X-squared = 26.376 lebih besar dari df (25)
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.3878) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+Ini menunjukkan bahwa nilai statistik uji tidak terlalu besar, yang mendukung kesimpulan bahwa residual sudah cukup acak.
+
+# Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(std_resid63, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 0.9459 yang berarti > alpha (0,05). Hal tersebut berarti menerima Ho (tidak ada efek arch) yang menandakan terdapat tidak ada efek arch pada model gjrGARCH(3,1)-sstd.
+
+# Kesimpulan
+Model yang digunakan sudah cukup baik karena residualnya tidak menunjukkan pola autokorelasi yang signifikan.
+Model GARCH yang digunakan bisa dianggap valid, karena volatilitasnya sudah cukup terprediksi dengan baik.
+
+# Peramalan
+```{r}
+# Prediksi dengan model
+forecast63 <- ugarchforecast(garch_fit63, n.ahead = length(test_data))
+
+# Ambil nilai prediksi log return
+predicted_values63 <- as.numeric(fitted(forecast63))
+```
+
+```{r}
+# Perbaikan transformasi kembali ke harga asli
+P0_test63 <- Close[train_size + 1]  # Ambil harga awal dari test set
+
+# Transformasi kembali log return ke harga asli
+harga_aktual63 <- P0_test63 * exp(cumsum(test_data))  # Harga aktual dari test set
+harga_prediksi63 <- P0_test63 * exp(cumsum(predicted_values63))  # Harga prediksi dari model
+
+# Pastikan panjangnya sama sebelum membuat data frame
+if (length(harga_prediksi63) == length(harga_aktual63)) {
+  comparison_harga63 <- data.frame("Aktual" = harga_aktual63, "Prediksi" = harga_prediksi63)
+  print(comparison_harga63)
+  
+  # Hitung MAPE
+  mape_harga63 <- mean(abs((harga_prediksi63 - harga_aktual63) / harga_aktual63))
+  mape_harga_percent63 <- mape_harga63 * 100
+  print(paste("MAPE (Harga Asli): ", mape_harga_percent63, "%"))
+} else {
+  print("Error: Panjang harga_prediksi dan harga_aktual tidak sama!")
+}
+```
+
+# Pakai Nilai SMPAPE
+```{r}
+smape_harga63 <- mean(2 * abs(harga_prediksi63 - harga_aktual63) / (abs(harga_aktual63) + abs(harga_prediksi63))) * 100
+print(paste("SMAPE (Harga Asli): ", smape_harga63, "%"))
+```
+
+# Model ARCH-GARCH Dengan Distribusi Normal, std, dan sstd. P=4 dan rentang Q=0-5
+```{r}
+spec68 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 0)), 
+                     distribution.model = "std")
+garch_fit68 <- ugarchfit(spec = spec68, data = train_data)
+garch_fit68
+```
+
+```{r}
+spec69 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 1)), 
+                     distribution.model = "std")
+garch_fit69 <- ugarchfit(spec = spec69, data = train_data)
+garch_fit69
+```
+
+```{r}
+spec70 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 2)), 
+                     distribution.model = "std")
+garch_fit70 <- ugarchfit(spec = spec70, data = train_data)
+garch_fit70
+```
+
+```{r}
+spec71 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 3)), 
+                     distribution.model = "std")
+garch_fit71 <- ugarchfit(spec = spec71, data = train_data)
+garch_fit71
+```
+
+```{r}
+spec72 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 4)), 
+                     distribution.model = "std")
+garch_fit72 <- ugarchfit(spec = spec72, data = train_data)
+garch_fit72
+```
+
+```{r}
+spec73 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 5)), 
+                     distribution.model = "std")
+garch_fit73 <- ugarchfit(spec = spec73, data = train_data)
+garch_fit73
+```
+
+```{r}
+spec74 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 0)), 
+                     distribution.model = "norm")
+garch_fit74 <- ugarchfit(spec = spec74, data = train_data)
+garch_fit74
+```
+
+```{r}
+spec75 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 1)), 
+                     distribution.model = "norm")
+garch_fit75 <- ugarchfit(spec = spec75, data = train_data)
+garch_fit75
+```
+
+```{r}
+spec76 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 2)), 
+                     distribution.model = "norm")
+garch_fit76 <- ugarchfit(spec = spec76, data = train_data)
+garch_fit76
+```
+
+```{r}
+spec77 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 3)), 
+                     distribution.model = "norm")
+garch_fit77 <- ugarchfit(spec = spec77, data = train_data)
+garch_fit77
+```
+
+```{r}
+spec78 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 4)), 
+                     distribution.model = "norm")
+garch_fit78 <- ugarchfit(spec = spec78, data = train_data)
+garch_fit78
+```
+
+```{r}
+spec79 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 5)), 
+                     distribution.model = "norm")
+garch_fit79 <- ugarchfit(spec = spec79, data = train_data)
+garch_fit79
+```
+
+```{r}
+spec80 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 0)), 
+                     distribution.model = "sstd")
+garch_fit80 <- ugarchfit(spec = spec80, data = train_data)
+garch_fit80
+```
+
+```{r}
+spec81 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 1)), 
+                     distribution.model = "sstd")
+garch_fit81 <- ugarchfit(spec = spec81, data = train_data)
+garch_fit81
+```
+
+```{r}
+spec82 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 2)), 
+                     distribution.model = "sstd")
+garch_fit82 <- ugarchfit(spec = spec81, data = train_data)
+garch_fit82
+```
+
+```{r}
+spec83 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 3)), 
+                     distribution.model = "sstd")
+garch_fit83 <- ugarchfit(spec = spec83, data = train_data)
+garch_fit83
+```
+
+```{r}
+spec84 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 4)), 
+                     distribution.model = "sstd")
+garch_fit84 <- ugarchfit(spec = spec84, data = train_data)
+garch_fit84
+```
+
+```{r}
+spec85 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(4, 5)), 
+                     distribution.model = "sstd")
+garch_fit85 <- ugarchfit(spec = spec85, data = train_data)
+garch_fit85
+```
+
+```{r}
+spec86 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(4, 0)), 
+                     distribution.model = "sstd")
+garch_fit86 <- ugarchfit(spec = spec86, data = train_data)
+garch_fit86
+```
+
+```{r}
+spec87 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(4, 1)), 
+                     distribution.model = "sstd")
+garch_fit87 <- ugarchfit(spec = spec87, data = train_data)
+garch_fit87
+```
+
+```{r}
+spec88 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(4, 2)), 
+                     distribution.model = "sstd")
+garch_fit88 <- ugarchfit(spec = spec88, data = train_data)
+garch_fit88
+```
+
+```{r}
+spec89 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(4, 3)), 
+                     distribution.model = "sstd")
+garch_fit89 <- ugarchfit(spec = spec89, data = train_data)
+garch_fit89
+```
+
+```{r}
+spec90 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(4, 4)), 
+                     distribution.model = "sstd")
+garch_fit90 <- ugarchfit(spec = spec90, data = train_data)
+garch_fit90
+```
+
+```{r}
+spec91 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(4, 5)), 
+                     distribution.model = "sstd")
+garch_fit91 <- ugarchfit(spec = spec91, data = train_data)
+garch_fit91
+```
+
+# Perbandingan Model ARCH-GARCH Dengan Distribusi Normal, std, dan sstd. P=4 dan rentang Q=0-5
+```{r}
+# Membuat daftar model yang ingin dibandingkan
+models4 <- list(
+  garch_fit68, garch_fit69, garch_fit70, garch_fit71, garch_fit72,garch_fit73, 
+  garch_fit74, garch_fit75, garch_fit76, garch_fit77, garch_fit78, garch_fit79,
+  garch_fit80, garch_fit81, garch_fit82, garch_fit83, garch_fit84, garch_fit85, 
+  garch_fit86, garch_fit87, garch_fit88, garch_fit89, garch_fit90, garch_fit91 
+)
+
+# Nama model untuk identifikasi
+model_names4 <- c(
+ "sGARCH(4,0)-std", "sGARCH(4,1)-std", "sGARCH(4,2)-std", "sGARCH(4,3)-std","sGARCH(4,4)-std", "sGARCH(4,5)-std",
+ "sGARCH(4,0)-norm", "sGARCH(4,1)-norm", "sGARCH(4,2)-norm", "sGARCH(4,3)-norm", "sGARCH(4,4)-norm", "sGARCH(4,5)-norm", 
+ "sGARCH(4,0)-sstd", "sGARCH(4,1)-sstd", "sGARCH(4,2)-sstd", "sGARCH(4,3)-sstd", "sGARCH(4,4)-sstd", "sGARCH(4,5)-sstd",
+"gjrGARCH(4,0)-sstd", "gjrGARCH(4,1)-sstd", "gjrGARCH(4,2)-sstd", "gjrGARCH(4,3)-sstd", "gjrGARCH(4,4)-sstd", "gjrGARCH(4,5)-sstd"
+)
+
+# Pastikan panjang model_names dan models sama
+if (length(models4) != length(model_names4)) {
+  stop("Jumlah model dan nama model tidak sama!")
+}
+
+# Menghitung AIC dengan penanganan error
+aic_values4 <- sapply(models4, function(x) tryCatch(infocriteria(x)[[1]], error = function(e) NA))
+
+# Membuat data frame dengan format yang benar
+model_comparison4 <- data.frame(
+  Model = model_names4,
+  AIC = aic_values4,
+  stringsAsFactors = FALSE
+)
+
+# Menampilkan tabel perbandingan
+print(model_comparison4)
+```
+
+# Mencari model dengan AIC terendah
+AIC (Akaike Information Criterion) → semakin rendah, semakin baik
+```{R}
+best_model_index4 <- which.min(aic_values4)  # Mencari indeks AIC terkecil
+best_model4 <- model_comparison4[best_model_index4, ]  # Mengambil model terbaik
+
+cat("\nModel dengan AIC terendah:\n")
+cat("Nama Model: ", best_model4$Model, "\n")
+cat("AIC: ", best_model4$AIC, "\n")
+```
+
+## Analisis Model Terbaik
+gjrGARCH(4,2)-sstd    dengan AIC: -5.475885 
+
+# gjrGARCH(4,2)-sstd 
+# Periksa Residual Standardized
+```{r}
+# Ambil residual yang distandarisasi
+std_resid88 <- residuals(garch_fit88, standardize = TRUE)
+
+# Plot residual standardize
+plot(std_resid88, type = "l", main = "Standardized Residuals", col = "blue")
+
+# Plot ACF dan PACF dari residual kuadrat
+acf(std_resid88^2, main = "ACF of Squared Standardized Residuals")
+pacf(std_resid88^2, main = "PACF of Squared Standardized Residuals")
+```
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(std_resid88)
+qqline(std_resid88)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(std_resid88, "pnorm", mean=mean(std_resid88), sd=sd(std_resid88))
+```
+
+Karena nilai p-value (2.2e-16) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. Namun, KS test tidak harus normal setelah ARCH-GARCH, karena tujuan utama model ini bukan membuat residual normal, melainkan menangkap pola volatilitas yang berubah-ubah.
+
+## Menghitung nilai Ljung-Box
+Box-Ljung test digunakan untuk menguji apakah residual dari model masih memiliki autokorelasi.
+```{r}
+ljung_box88 <- Box.test(std_resid88, lag = 25, type = "Ljung-Box")
+ljung_box88
+```
+
+Hipotesis Nol (H₀): Tidak ada autokorelasi dalam residual (residual bersifat acak).
+Hipotesis Alternatif (H₁): Ada autokorelasi dalam residual (residual masih memiliki pola).
+
+p-value = 0.3652 > 0.05
+
+Tidak cukup bukti untuk menolak H₀, sehingga residual dianggap tidak memiliki autokorelasi secara signifikan.
+Ini berarti model sudah menangkap pola volatilitas dengan cukup baik, dan tidak ada pola tersisa dalam residual.
+X-squared = 26.816 lebih besar dari df (25)
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.3652) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+Ini menunjukkan bahwa nilai statistik uji tidak terlalu besar, yang mendukung kesimpulan bahwa residual sudah cukup acak.
+
+# Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(std_resid88, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 0.8932 yang berarti > alpha (0,05). Hal tersebut berarti menerima Ho (tidak ada efek arch) yang menandakan terdapat tidak ada efek arch pada model  gjrGARCH(4,2)-sstd.
+
+# Kesimpulan
+Model yang digunakan sudah cukup baik karena residualnya tidak menunjukkan pola autokorelasi yang signifikan.
+Model GARCH yang digunakan bisa dianggap valid, karena volatilitasnya sudah cukup terprediksi dengan baik.
+
+# Peramalan
+```{r}
+# Prediksi dengan model
+forecast88 <- ugarchforecast(garch_fit88, n.ahead = length(test_data))
+
+# Ambil nilai prediksi log return
+predicted_values88 <- as.numeric(fitted(forecast88))
+```
+
+```{r}
+# Perbaikan transformasi kembali ke harga asli
+P0_test88 <- Close[train_size + 1]  # Ambil harga awal dari test set
+
+# Transformasi kembali log return ke harga asli
+harga_aktual88 <- P0_test88 * exp(cumsum(test_data))  # Harga aktual dari test set
+harga_prediksi88 <- P0_test88 * exp(cumsum(predicted_values88))  # Harga prediksi dari model
+
+# Pastikan panjangnya sama sebelum membuat data frame
+if (length(harga_prediksi88) == length(harga_aktual88)) {
+  comparison_harga88 <- data.frame("Aktual" = harga_aktual88, "Prediksi" = harga_prediksi88)
+  print(comparison_harga88)
+  
+  # Hitung MAPE
+  mape_harga88 <- mean(abs((harga_prediksi88 - harga_aktual88) / harga_aktual88))
+  mape_harga_percent88 <- mape_harga88 * 100
+  print(paste("MAPE (Harga Asli): ", mape_harga_percent88, "%"))
+} else {
+  print("Error: Panjang harga_prediksi dan harga_aktual tidak sama!")
+}
+```
+
+# Pakai Nilai SMPAPE
+```{r}
+smape_harga88 <- mean(2 * abs(harga_prediksi88 - harga_aktual88) / (abs(harga_aktual88) + abs(harga_prediksi88))) * 100
+print(paste("SMAPE (Harga Asli): ", smape_harga88, "%"))
+```
+
+# Model ARCH-GARCH Dengan Distribusi Normal, std, dan sstd. P=5 dan rentang Q=0-5
+```{r}
+spec92 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 0)), 
+                     distribution.model = "std")
+garch_fit92 <- ugarchfit(spec = spec92, data = train_data)
+garch_fit92
+```
+
+```{r}
+spec93 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 1)), 
+                     distribution.model = "std")
+garch_fit93 <- ugarchfit(spec = spec93, data = train_data)
+garch_fit93
+```
+
+```{r}
+spec94 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 2)), 
+                     distribution.model = "std")
+garch_fit94 <- ugarchfit(spec = spec94, data = train_data)
+garch_fit94
+```
+
+```{r}
+spec95 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 3)), 
+                     distribution.model = "std")
+garch_fit95 <- ugarchfit(spec = spec95, data = train_data)
+garch_fit95
+```
+
+```{r}
+spec96 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 4)), 
+                     distribution.model = "std")
+garch_fit96 <- ugarchfit(spec = spec96, data = train_data)
+garch_fit96
+```
+
+```{r}
+spec97 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 5)), 
+                     distribution.model = "std")
+garch_fit97 <- ugarchfit(spec = spec97, data = train_data)
+garch_fit97
+```
+
+```{r}
+spec98 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 0)), 
+                     distribution.model = "norm")
+garch_fit98 <- ugarchfit(spec = spec98, data = train_data)
+garch_fit98
+```
+
+```{r}
+spec99 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 1)), 
+                     distribution.model = "norm")
+garch_fit99 <- ugarchfit(spec = spec99, data = train_data)
+garch_fit99
+```
+
+```{r}
+spec100 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 2)), 
+                     distribution.model = "norm")
+garch_fit100 <- ugarchfit(spec = spec100, data = train_data)
+garch_fit100
+```
+
+```{r}
+spec101 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 3)), 
+                     distribution.model = "norm")
+garch_fit101 <- ugarchfit(spec = spec101, data = train_data)
+garch_fit101
+```
+
+```{r}
+spec102 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 4)), 
+                     distribution.model = "norm")
+garch_fit102 <- ugarchfit(spec = spec102, data = train_data)
+garch_fit102
+```
+
+```{r}
+spec103 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 5)), 
+                     distribution.model = "norm")
+garch_fit103 <- ugarchfit(spec = spec103, data = train_data)
+garch_fit103
+```
+
+```{r}
+spec104 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 0)), 
+                     distribution.model = "sstd")
+garch_fit104 <- ugarchfit(spec = spec104, data = train_data)
+garch_fit104
+```
+
+```{r}
+spec105 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 1)), 
+                     distribution.model = "sstd")
+garch_fit105 <- ugarchfit(spec = spec105, data = train_data)
+garch_fit105
+```
+
+```{r}
+spec106 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 2)), 
+                     distribution.model = "sstd")
+garch_fit106 <- ugarchfit(spec = spec106, data = train_data)
+garch_fit106
+```
+
+```{r}
+spec107 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 3)), 
+                     distribution.model = "sstd")
+garch_fit107 <- ugarchfit(spec = spec107, data = train_data)
+garch_fit107
+```
+
+```{r}
+spec108 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 4)), 
+                     distribution.model = "sstd")
+garch_fit108 <- ugarchfit(spec = spec108, data = train_data)
+garch_fit108
+```
+
+```{r}
+spec109 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "sGARCH", garchOrder = c(5, 5)), 
+                     distribution.model = "sstd")
+garch_fit109 <- ugarchfit(spec = spec109, data = train_data)
+garch_fit109
+```
+
+```{r}
+spec110 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(5, 0)), 
+                     distribution.model = "sstd")
+garch_fit110 <- ugarchfit(spec = spec110, data = train_data)
+garch_fit110
+```
+
+```{r}
+spec111 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(5, 1)), 
+                     distribution.model = "sstd")
+garch_fit111 <- ugarchfit(spec = spec111, data = train_data)
+garch_fit111
+```
+
+```{r}
+spec112 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(5, 2)), 
+                     distribution.model = "sstd")
+garch_fit112 <- ugarchfit(spec = spec112, data = train_data)
+garch_fit112
+```
+
+```{r}
+spec113 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(5, 3)), 
+                     distribution.model = "sstd")
+garch_fit113 <- ugarchfit(spec = spec113, data = train_data)
+garch_fit113
+```
+
+```{r}
+spec114 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(5, 4)), 
+                     distribution.model = "sstd")
+garch_fit114 <- ugarchfit(spec = spec114, data = train_data)
+garch_fit114
+```
+
+```{r}
+spec115 <- ugarchspec(mean.model = list(armaOrder = c(2, 3), include.mean = TRUE), 
+                     variance.model = list(model = "gjrGARCH", garchOrder = c(5, 5)), 
+                     distribution.model = "sstd")
+garch_fit115 <- ugarchfit(spec = spec115, data = train_data)
+garch_fit115
+```
+
+# Perbandingan Model ARCH-GARCH Dengan Distribusi Normal, std, dan sstd. P=5 dan rentang Q=0-5
+```{r}
+# Membuat daftar model yang ingin dibandingkan
+models5 <- list(
+  garch_fit92, garch_fit93, garch_fit94, garch_fit95, garch_fit96, garch_fit97, 
+  garch_fit98, garch_fit99, garch_fit100, garch_fit101, garch_fit102, garch_fit103,
+  garch_fit104, garch_fit105, garch_fit106, garch_fit107, garch_fit108, garch_fit109, 
+  garch_fit110, garch_fit111, garch_fit112, garch_fit113, garch_fit114, garch_fit115 
+)
+
+# Nama model untuk identifikasi
+model_names5 <- c(
+ "sGARCH(5,0)-std", "sGARCH(5,1)-std", "sGARCH(5,2)-std", "sGARCH(5,3)-std","sGARCH(5,4)-std", "sGARCH(5,5)-std",
+ "sGARCH(5,0)-norm", "sGARCH(5,1)-norm", "sGARCH(5,2)-norm", "sGARCH(5,3)-norm", "sGARCH(5,4)-norm", "sGARCH(5,5)-norm", 
+ "sGARCH(5,0)-sstd", "sGARCH(5,1)-sstd", "sGARCH(5,2)-sstd", "sGARCH(5,3)-sstd", "sGARCH(5,4)-sstd", "sGARCH(5,5)-sstd",
+"gjrGARCH(5,0)-sstd", "gjrGARCH(5,1)-sstd", "gjrGARCH(5,2)-sstd", "gjrGARCH(5,3)-sstd", "gjrGARCH(5,4)-sstd", "gjrGARCH(5,5)-sstd"
+)
+
+# Pastikan panjang model_names dan models sama
+if (length(models5) != length(model_names5)) {
+  stop("Jumlah model dan nama model tidak sama!")
+}
+
+# Menghitung AIC dengan penanganan error
+aic_values5 <- sapply(models5, function(x) tryCatch(infocriteria(x)[[1]], error = function(e) NA))
+
+# Membuat data frame dengan format yang benar
+model_comparison5 <- data.frame(
+  Model = model_names5,
+  AIC = aic_values5,
+  stringsAsFactors = FALSE
+)
+
+# Menampilkan tabel perbandingan
+print(model_comparison5)
+```
+
+# Mencari model dengan AIC terendah
+AIC (Akaike Information Criterion) → semakin rendah, semakin baik
+```{R}
+best_model_index5 <- which.min(aic_values5)  # Mencari indeks AIC terkecil
+best_model5 <- model_comparison5[best_model_index5, ]  # Mengambil model terbaik
+
+cat("\nModel dengan AIC terendah:\n")
+cat("Nama Model: ", best_model5$Model, "\n")
+cat("AIC: ", best_model5$AIC, "\n")
+```
+
+## Analisis Model Terbaik
+gjrGARCH(5,1)-sstd   dengan AIC: -5.474597  
+
+# gjrGARCH(5,1)-sstd 
+# Periksa Residual Standardized
+```{r}
+# Ambil residual yang distandarisasi
+std_resid111 <- residuals(garch_fit111, standardize = TRUE)
+
+# Plot residual standardize
+plot(std_resid111, type = "l", main = "Standardized Residuals", col = "blue")
+
+# Plot ACF dan PACF dari residual kuadrat
+acf(std_resid111^2, main = "ACF of Squared Standardized Residuals")
+pacf(std_resid111^2, main = "PACF of Squared Standardized Residuals")
+```
+
+## Plot Kuantil Kenormalan
+```{r}
+qqnorm(std_resid111)
+qqline(std_resid111)
+```
+
+Berdasarkan plot kuantil kenormalan terlihat bahwa beberapa titik berada di luar garis kuantil-kuantil. 
+
+## Uji Kolmogorov-Smirnov Test
+```{r}
+ks.test(std_resid111, "pnorm", mean=mean(std_resid111), sd=sd(std_resid111))
+```
+
+Karena nilai p-value (2.2e-16) < α=5%, maka H0 ditolak. Artinya, dapat disimpulkan bahwa residual tidak mengikuti distribusi normal. Sehingga, asumsi normalitas tidak terpenuhi. Namun, KS test tidak harus normal setelah ARCH-GARCH, karena tujuan utama model ini bukan membuat residual normal, melainkan menangkap pola volatilitas yang berubah-ubah.
+
+## Menghitung nilai Ljung-Box
+Box-Ljung test digunakan untuk menguji apakah residual dari model masih memiliki autokorelasi.
+```{r}
+ljung_box111 <- Box.test(std_resid111, lag = 25, type = "Ljung-Box")
+ljung_box111
+```
+
+Hipotesis Nol (H₀): Tidak ada autokorelasi dalam residual (residual bersifat acak).
+Hipotesis Alternatif (H₁): Ada autokorelasi dalam residual (residual masih memiliki pola).
+
+p-value = 0.387 > 0.05
+
+Tidak cukup bukti untuk menolak H₀, sehingga residual dianggap tidak memiliki autokorelasi secara signifikan.
+Ini berarti model sudah menangkap pola volatilitas dengan cukup baik, dan tidak ada pola tersisa dalam residual.
+X-squared = 26.39 lebih besar dari df (25)
+
+Berdasarkan analisis Box-Ljung test, dimana nilai P-value (0.387) lebih besar dari α=5%. Jadi dapat disimpulkan bahwa residual tidak berautokorelasi. Sehingga, asumsi non-autokorelasi terpenuhi. 
+
+Ini menunjukkan bahwa nilai statistik uji tidak terlalu besar, yang mendukung kesimpulan bahwa residual sudah cukup acak.
+
+# Uji LM
+```{r}
+# Uji ARCH-LM pada standardized residuals
+ArchTest(std_resid111, lags = 10)
+```
+
+Pengecekan efek arch dilakukan dengan arch.test terhadap Close dan didapatkan nilai p-value 0.9303 yang berarti > alpha (0,05). Hal tersebut berarti menerima Ho (tidak ada efek arch) yang menandakan terdapat tidak ada efek arch pada model gjrGARCH(5,1)-sstd.
+
+# Kesimpulan
+Model yang digunakan sudah cukup baik karena residualnya tidak menunjukkan pola autokorelasi yang signifikan.
+Model GARCH yang digunakan bisa dianggap valid, karena volatilitasnya sudah cukup terprediksi dengan baik.
+
+# Peramalan
+```{r}
+# Prediksi dengan model
+forecast111 <- ugarchforecast(garch_fit111, n.ahead = length(test_data))
+
+# Ambil nilai prediksi log return
+predicted_values111 <- as.numeric(fitted(forecast111))  
+```
+
+```{r}
+# Perbaikan transformasi kembali ke harga asli 
+P0_test111 <- Close[train_size + 1]  # Ambil harga awal dari test set
+
+# Transformasi kembali log return ke harga asli
+harga_aktual111 <- P0_test111 * exp(cumsum(test_data))  # Harga aktual dari test set
+harga_prediksi111 <- P0_test111 * exp(cumsum(predicted_values111))  # Harga prediksi dari model
+
+# Pastikan panjangnya sama sebelum membuat data frame
+if (length(harga_prediksi111) == length(harga_aktual111)) {
+  comparison_harga111 <- data.frame("Aktual" = harga_aktual111, "Prediksi" = harga_prediksi111)
+  print(comparison_harga111)
+  
+  # Hitung MAPE
+  mape_harga111 <- mean(abs((harga_prediksi111 - harga_aktual111) / harga_aktual111))
+  mape_harga_percent111 <- mape_harga111 * 100
+  print(paste("MAPE (Harga Asli): ", mape_harga_percent111, "%"))
+} else {
+  print("Error: Panjang harga_prediksi dan harga_aktual tidak sama!")
+}
+```
+
+# Pakai Nilai SMPAPE
+```{r}
+smape_harga111 <- mean(2 * abs(harga_prediksi111 - harga_aktual111) / (abs(harga_aktual111) + abs(harga_prediksi111))) * 100
+print(paste("SMAPE (Harga Asli): ", smape_harga111, "%"))
+```
+
+# Perandingan Nilai AIC Terkecil
+```{R}
+# Gabungkan semua model_comparison
+all_models <- rbind(
+  model_comparison,
+  model_comparison2,
+  model_comparison3,
+  model_comparison4,
+  model_comparison5
+)
+
+# Urutkan berdasarkan AIC yang terkecil
+sorted_models <- all_models[order(all_models$AIC), ]
+
+# Ambil 5 AIC terkecil
+top5_models <- head(sorted_models, 5)
+
+# Menampilkan hasilnya
+print(top5_models)
+```
+
+```{R}
+# Filter model sGARCH
+sgarch_models <- subset(all_models, grepl("sGARCH", Model))
+
+# Filter model gjrGARCH
+gjr_models <- subset(all_models, grepl("gjrGARCH", Model))
+
+# Urutkan masing-masing berdasarkan AIC
+top5_sgarch <- head(sgarch_models[order(sgarch_models$AIC), ], 5)
+top5_gjr <- head(gjr_models[order(gjr_models$AIC), ], 5)
+
+# Tampilkan hasil
+cat("Top 5 sGARCH Models:\n")
+print(top5_sgarch)
+
+cat("\nTop 5 gjrGARCH Models:\n")
+print(top5_gjr)
+```
+
+# Kesimpulan
+Berdasarkan nilai AIC di atas, diperoleh Model *sGARCH(1,2)-sstd dan gjrGARCH(2,1)-sstd* sebagai model dengan performa terbaik, dengan nilai AIC beruturut-turut sebesar -5.476981	dan -5.479345. Selanjutnya, akan dilakukan analisis menggunakan Kalman Filter untuk meningkatkan akurasi peramalan dengan memperbarui estimasi harga saham secara dinamis berdasarkan informasi terbaru.
+
+
+```{r}
+# Fungsi bantu untuk ambil parameter dan p-value dari model GARCH
+extract_significance <- function(models, name) {
+  coefs <- coef(models)
+  se <- sqrt(diag(vcov(models)))
+  z_val <- coefs / se
+  p_val <- 2 * (1 - pnorm(abs(z_val)))
+  
+  signif_flags <- ifelse(p_val < 0.05, "Signif", "NS")  # NS = Not Signif
+  
+  data.frame(
+    Model = name,
+    Parameter = names(coefs),
+    Estimate = round(coefs, 6),
+    `Std.Error` = round(se, 6),
+    `z-value` = round(z_val, 3),
+    `p-value` = signif(p_val, 3),
+    Status = signif_flags,
+    row.names = NULL
+  )
+}
+
+# Terapkan ke semua model
+results_list <- mapply(extract_significance, models, model_names, SIMPLIFY = FALSE)
+
+# Gabungkan semua hasil ke dalam satu tabel besar
+all_significance <- do.call(rbind, results_list)
+
+# Tampilkan beberapa baris pertama
+all_significance
+```
+
+
+```{r}
+extract_significance2 <- function(models2, name) {
+  coefs <- coef(models2)
+  se <- sqrt(diag(vcov(models2)))
+  z_val <- coefs / se
+  p_val <- 2 * (1 - pnorm(abs(z_val)))
+  
+  signif_flags2 <- ifelse(p_val < 0.05, "Signif", "NS")  # NS = Not Signif
+  
+  data.frame(
+    Model = name,
+    Parameter = names(coefs),
+    Estimate = round(coefs, 6),
+    `Std.Error` = round(se, 6),
+    `z-value` = round(z_val, 3),
+    `p-value` = signif(p_val, 3),
+    Status = signif_flags2,
+    row.names = NULL
+  )
+}
+
+
+# Terapkan ke semua model
+results_list2 <- mapply(extract_significance, models2, model_names2, SIMPLIFY = FALSE)
+
+# Gabungkan semua hasil ke dalam satu tabel besar
+all_significance2 <- do.call(rbind, results_list2)
+
+# Tampilkan beberapa baris pertama
+all_significance2
+```
+
+```{r}
+# Fungsi bantu untuk ambil parameter dan p-value dari model GARCH
+extract_significance3 <- function(models3, name) {
+  coefs <- coef(models3)
+  se <- sqrt(diag(vcov(models3)))
+  z_val <- coefs / se
+  p_val <- 2 * (1 - pnorm(abs(z_val)))
+  
+  signif_flags3 <- ifelse(p_val < 0.05, "Signif", "NS")  # NS = Not Signif
+  
+  data.frame3(
+    Model = name,
+    Parameter = names(coefs),
+    Estimate = round(coefs, 6),
+    `Std.Error` = round(se, 6),
+    `z-value` = round(z_val, 3),
+    `p-value` = signif(p_val, 3),
+    Status = signif_flags,
+    row.names = NULL
+  )
+}
+
+# Terapkan ke semua model
+results_list3 <- mapply(extract_significance, models3, model_names3, SIMPLIFY = FALSE)
+
+# Gabungkan semua hasil ke dalam satu tabel besar
+all_significance3 <- do.call(rbind, results_list3)
+
+# Tampilkan beberapa baris pertama
+all_significance3
+```
+
+```{r}
+# Fungsi bantu untuk ambil parameter dan p-value dari model GARCH
+extract_significance4 <- function(models4, name) {
+  coefs <- coef(models4)
+  se <- sqrt(diag(vcov(models4)))
+  z_val <- coefs / se
+  p_val <- 2 * (1 - pnorm(abs(z_val)))
+  
+  signif_flags4 <- ifelse(p_val < 0.05, "Signif", "NS")  # NS = Not Signif
+  
+  data.frame4(
+    Model = name,
+    Parameter = names(coefs),
+    Estimate = round(coefs, 6),
+    `Std.Error` = round(se, 6),
+    `z-value` = round(z_val, 3),
+    `p-value` = signif(p_val, 3),
+    Status = signif_flags,
+    row.names = NULL
+  )
+}
+
+# Terapkan ke semua model
+results_list4 <- mapply(extract_significance, models4, model_names4, SIMPLIFY = FALSE)
+
+# Gabungkan semua hasil ke dalam satu tabel besar
+all_significance4 <- do.call(rbind, results_list4)
+
+# Tampilkan beberapa baris pertama
+all_significance4
+```
+
+```{r}
+extract_significance5 <- function(models5, name) {
+  coefs <- tryCatch(coef(models5), error = function(e) NULL)
+
+  if (is.null(coefs) || !is.numeric(coefs)) {
+    warning(paste("Model", name, "tidak valid atau tidak mengandung koefisien numerik."))
+    return(NULL)
+  }
+
+  se <- tryCatch(sqrt(diag(vcov(models5))), error = function(e) rep(NA, length(coefs)))
+  z_val <- coefs / se
+  p_val <- 2 * (1 - pnorm(abs(z_val)))
+  signif_flags <- ifelse(p_val < 0.05, "Signif", "NS")
+
+  data.frame(
+    Model = name,
+    Parameter = names(coefs),
+    Estimate = round(coefs, 6),
+    `Std.Error` = round(se, 6),
+    `z-value` = round(z_val, 3),
+    `p-value` = signif(p_val, 3),
+    Status = signif_flags,
+    row.names = NULL
+  )
+}
+
+results_list5 <- mapply(extract_significance5, models5, model_names5, SIMPLIFY = FALSE)
+results_list5 <- Filter(Negate(is.null), results_list5)
+all_significance5 <- do.call(rbind, results_list5)
+all_significance5
+```
+
+
